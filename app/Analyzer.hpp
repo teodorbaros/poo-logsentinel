@@ -292,6 +292,11 @@ public:
             allAlerts[i].updateAlertStats(medium, high, critical, ips, counts);
         }
 
+        if (ips.empty() || counts.empty()) {
+            os << "  No alerts generated.\n";
+            return;
+        }
+
         std::size_t top = 0;
         for (std::size_t j = 1; j < ips.size(); j++) {
             if (counts[j] > counts[top]) {
