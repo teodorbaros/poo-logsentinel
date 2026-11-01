@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -140,44 +139,7 @@ public:
         int icmp = 0;
 
         for (std::size_t i = 0; i < entries_.size(); i++) {
-            const FirewallEntry& e = entries_[i];
-            if (e.blocked_) {
-                blocked++;
-            }
-            if (e.targetsCriticalService()) {
-                criticalPackets++;
-            }
-            if (e.protocol_ == "TCP") {
-                tcp++;
-            } else if (e.protocol_ == "UDP") {
-                udp++;
-            } else if (e.protocol_ == "ICMP") {
-                icmp++;
-            }
-
-            bool ipKnown = false;
-            for (std::size_t j = 0; j < ips.size(); j++) {
-                if (ips[j] == e.sourceIp_) {
-                    ipKnown = true;
-                    break;
-                }
-            }
-            if (!ipKnown) {
-                ips.push_back(e.sourceIp_);
-            }
-
-            std::size_t pidx = ports.size();
-            for (std::size_t j = 0; j < ports.size(); j++) {
-                if (ports[j] == e.destPort_) {
-                    pidx = j;
-                    break;
-                }
-            }
-            if (pidx == ports.size()) {
-                ports.push_back(e.destPort_);
-                portHits.push_back(0);
-            }
-            portHits[pidx]++;
+            entries_[i].updateFirewallStats(ips, ports, portHits, blocked, criticalPackets, tcp, udp, icmp);
         }
 
         int total = static_cast<int>(entries_.size());
@@ -213,6 +175,3 @@ public:
         return os;
     }
 };
-
-
-
