@@ -1,5 +1,4 @@
-#ifndef FIREWALL_ENTRY_HPP
-#define FIREWALL_ENTRY_HPP
+#pragma once
 
 #include <iostream>
 #include <string>
@@ -223,4 +222,3 @@ public:
     }
 };
 
-#endif // FIREWALL_ENTRY_HPP
