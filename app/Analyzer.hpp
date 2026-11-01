@@ -1,13 +1,15 @@
-#ifndef ANALYZER_HPP
-#define ANALYZER_HPP
-
-#include <iostream>
+#pragma once
+#include <iomanip>
+#include <ostream>
+#include <string>
 #include <vector>
-#include "LogSource.hpp"
+
+#include "Alert.hpp"
 #include "FirewallSource.hpp"
 #include "IpTracker.hpp"
+#include "LogSource.hpp"
 #include "PortScanTracker.hpp"
-#include "Alert.hpp"
+#include "Utils.hpp"
 
 class Analyzer {
 private:
@@ -39,6 +41,37 @@ private:
             }
         }
         return -1;
+    }
+
+    void countSeverities(const std::vector<Alert>& alerts, int& medium, int& high, int& critical) const {
+        for (std::size_t i = 0; i < alerts.size(); i++) {
+            if (alerts[i].severity_ == "CRITICAL") {
+                critical++;
+            } else if (alerts[i].severity_ == "HIGH") {
+                high++;
+            } else {
+                medium++;
+            }
+        }
+    }
+
+    void addIpCounts(const std::vector<Alert>& alerts, std::vector<std::string>& ips, std::vector<int>& counts) const {
+        for (std::size_t i = 0; i < alerts.size(); i++) {
+            const std::string& ip = alerts[i].trigger_.ip_;
+            int idx = -1;
+            for (std::size_t j = 0; j < ips.size(); j++) {
+                if (ips[j] == ip) {
+                    idx = static_cast<int>(j);
+                    break;
+                }
+            }
+            if (idx < 0) {
+                ips.push_back(ip);
+                counts.push_back(0);
+                idx = static_cast<int>(ips.size()) - 1;
+            }
+            counts[idx]++;
+        }
     }
 
 public:
@@ -193,31 +226,117 @@ public:
     }
 
     void printActiveTrackers(std::ostream& os) const {
+        os << "\n--- Active Trackers (no alert triggered yet) ---\n";
         os << "Active SSH Trackers (" << sshTrackers_.size() << "):\n";
+        if (sshTrackers_.empty()) {
+            os << "  (none)\n";
+        }
         for (std::size_t i = 0; i < sshTrackers_.size(); i++) {
-            os << "  " << sshTrackers_[i] << "\n";
+            os << "  #" << (i + 1) << " " << sshTrackers_[i] << "\n";
         }
         os << "Active Firewall Trackers (" << fwTrackers_.size() << "):\n";
+        if (fwTrackers_.empty()) {
+            os << "  (none)\n";
+        }
         for (std::size_t i = 0; i < fwTrackers_.size(); i++) {
-            os << "  " << fwTrackers_[i] << "\n";
+            os << "  #" << (i + 1) << " " << fwTrackers_[i] << "\n";
         }
     }
 
     void printReport(std::ostream& os) const {
+        os << "\n+-------------------------------------------------------+\n";
+        os << "|                  SIEM ANALYSIS REPORT                 |\n";
+        os << "+-------------------------------------------------------+\n";
+        os << "Policy in use:\n";
+        os << "  SSH failure threshold : " << sshThreshold_ << "\n";
+        os << "  Port scan threshold   : " << portScanThreshold_ << " distinct ports\n";
+        os << "  Time window           : " << windowSeconds_ << "s\n";
+        os << "  Min failure ratio     : " << minFailureRatio_ << "\n\n";
+
         os << "--- A. Firewall Port Scan Alerts (" << fwAlerts_.size() << ") ---\n";
+        if (fwAlerts_.empty()) {
+            os << "  (none)\n";
+        }
         for (std::size_t i = 0; i < fwAlerts_.size(); i++) {
-            os << "  " << fwAlerts_[i] << "\n";
+            os << "  #" << (i + 1) << " " << fwAlerts_[i] << "\n";
         }
 
-        os << "--- B. SSH Brute-Force Alerts (" << sshAlerts_.size() << ") ---\n";
+        os << "\n--- B. SSH Brute-Force Alerts (" << sshAlerts_.size() << ") ---\n";
+        if (sshAlerts_.empty()) {
+            os << "  (none)\n";
+        }
         for (std::size_t i = 0; i < sshAlerts_.size(); i++) {
-            os << "  " << sshAlerts_[i] << "\n";
+            os << "  #" << (i + 1) << " " << sshAlerts_[i] << "\n";
         }
 
-        os << "--- C. Cross-Log Correlated SIEM Alerts (" << correlatedAlerts_.size() << ") ---\n";
-        for (std::size_t i = 0; i < correlatedAlerts_.size(); i++) {
-            os << "  " << correlatedAlerts_[i] << "\n";
+        os << "\n--- C. Cross-Log Correlated SIEM Alerts (" << correlatedAlerts_.size() << ") ---\n";
+        if (correlatedAlerts_.empty()) {
+            os << "  (none)\n";
         }
+        for (std::size_t i = 0; i < correlatedAlerts_.size(); i++) {
+            os << "  #" << (i + 1) << " " << correlatedAlerts_[i] << "\n";
+        }
+
+        os << "\n--- Summary ---\n";
+        os << "  Firewall alerts    : " << fwAlerts_.size() << "\n";
+        os << "  SSH alerts         : " << sshAlerts_.size() << "\n";
+        os << "  Correlated alerts  : " << correlatedAlerts_.size() << "\n";
+        os << "  Total              : "
+           << (fwAlerts_.size() + sshAlerts_.size() + correlatedAlerts_.size()) << "\n";
+    }
+
+    void printStatistics(std::ostream& os) const {
+        os << "--- Alert Statistics ---\n";
+        int total = static_cast<int>(sshAlerts_.size() + fwAlerts_.size() + correlatedAlerts_.size());
+        if (total == 0) {
+            os << "  No alerts generated.\n";
+            return;
+        }
+
+        int medium = 0;
+        int high = 0;
+        int critical = 0;
+        countSeverities(sshAlerts_, medium, high, critical);
+        countSeverities(fwAlerts_, medium, high, critical);
+        countSeverities(correlatedAlerts_, medium, high, critical);
+
+        std::vector<std::string> ips;
+        std::vector<int> counts;
+        addIpCounts(sshAlerts_, ips, counts);
+        addIpCounts(fwAlerts_, ips, counts);
+        addIpCounts(correlatedAlerts_, ips, counts);
+
+        int top = 0;
+        for (std::size_t j = 1; j < ips.size(); j++) {
+            if (counts[j] > counts[top]) {
+                top = static_cast<int>(j);
+            }
+        }
+
+        int events = static_cast<int>(sshSource_.getEntryCount() + fwSource_.getEntryCount());
+        double mediumPct = 100.0 * medium / total;
+        double highPct = 100.0 * high / total;
+        double criticalPct = 100.0 * critical / total;
+
+        std::ios::fmtflags oldFlags = os.flags();
+        std::streamsize oldPrecision = os.precision();
+        os << std::fixed << std::setprecision(1);
+
+        os << "  Total alerts        : " << total << "\n";
+        os << "  By type             : SSH=" << sshAlerts_.size() << ", FW=" << fwAlerts_.size()
+           << ", Correlated=" << correlatedAlerts_.size() << "\n";
+        os << "  MEDIUM              : " << medium << " (" << mediumPct << "%) " << makeBar(mediumPct) << "\n";
+        os << "  HIGH                : " << high << " (" << highPct << "%) " << makeBar(highPct) << "\n";
+        os << "  CRITICAL            : " << critical << " (" << criticalPct << "%) " << makeBar(criticalPct) << "\n";
+        os << "  Distinct IPs alerted: " << ips.size() << "\n";
+        os << "  Most active attacker: " << ips[top] << " (" << counts[top] << " alerts)\n";
+        if (events > 0) {
+            os << "  Detection rate      : " << (100.0 * total / events) << " alerts per 100 events ("
+               << total << " alerts / " << events << " events)\n";
+        }
+
+        os.flags(oldFlags);
+        os.precision(oldPrecision);
     }
 
     friend std::ostream& operator<<(std::ostream& os, const Analyzer& analyzer) {
@@ -226,4 +345,3 @@ public:
     }
 };
 
-#endif // ANALYZER_HPP
