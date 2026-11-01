@@ -1,11 +1,11 @@
-#pragma once
+#ifndef PORT_SCAN_TRACKER_H
+#define PORT_SCAN_TRACKER_H
 
-#include <ostream>
+#include <iostream>
 #include <sstream>
 #include <vector>
-
-#include "Alert.hpp"
-#include "FirewallEntry.hpp"
+#include "FirewallEntry.h"
+#include "Alert.h"
 
 class PortScanTracker {
 private:
@@ -35,25 +35,31 @@ public:
     }
 
     bool isPortScan(int minDistinctPorts) const {
-        return static_cast<int>(distinctPorts_.size()) >= minDistinctPorts;
+        int portCount = 0;
+        for (std::size_t i = 0; i < distinctPorts_.size(); i++) {
+            portCount++;
+        }
+        return portCount >= minDistinctPorts;
     }
 
     Alert createScanAlert(const FirewallEntry& lastPacket) const {
         int duration = lastPacket.secondsSince(firstPacket_);
+        int portCount = 0;
+        for (std::size_t i = 0; i < distinctPorts_.size(); i++) {
+            portCount++;
+        }
         std::ostringstream msg;
-        msg << distinctPorts_.size() << " distinct ports probed (" << blockedPackets_
+        msg << portCount << " distinct ports probed (" << blockedPackets_
             << " blocked packets, " << criticalPortHits_ << " critical services) in " << duration << "s";
-        int riskScore = static_cast<int>(distinctPorts_.size()) + criticalPortHits_;
+        int riskScore = portCount + criticalPortHits_;
         return Alert("FW-PORTSCAN", msg.str(), lastPacket.toTriggerEntry(), riskScore);
     }
 
     friend std::ostream& operator<<(std::ostream& os, const PortScanTracker& tracker) {
-        os << "[FW Tracker]\n"
-           << "      Window start   : " << tracker.firstPacket_ << "\n"
-           << "      Distinct ports : " << tracker.distinctPorts_.size() << "\n"
-           << "      Blocked packets: " << tracker.blockedPackets_ << "\n"
-           << "      Critical hits  : " << tracker.criticalPortHits_;
+        os << tracker.firstPacket_ << " -> " << tracker.distinctPorts_.size()
+           << " distinct ports (" << tracker.blockedPackets_ << " blocked)";
         return os;
     }
 };
 
+#endif
