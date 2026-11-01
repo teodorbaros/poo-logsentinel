@@ -1,10 +1,9 @@
-#ifndef IP_TRACKER_HPP
-#define IP_TRACKER_HPP
-
-#include <iostream>
+#pragma once
+#include <ostream>
 #include <sstream>
-#include "LogEntry.hpp"
+
 #include "Alert.hpp"
+#include "LogEntry.hpp"
 
 class IpTracker {
 private:
@@ -47,9 +46,11 @@ public:
     }
 
     friend std::ostream& operator<<(std::ostream& os, const IpTracker& tracker) {
-        os << tracker.firstAttempt_ << " -> " << tracker.failedAttempts_ << "/" << tracker.totalAttempts_ << " SSH failures";
+        os << "[SSH Tracker]\n"
+           << "      Window start : " << tracker.firstAttempt_ << "\n"
+           << "      Failed       : " << tracker.failedAttempts_ << "\n"
+           << "      Total        : " << tracker.totalAttempts_;
         return os;
     }
 };
 
-#endif // IP_TRACKER_HPP
