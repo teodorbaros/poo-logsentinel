@@ -1,14 +1,15 @@
-#pragma once
+#ifndef LOG_ENTRY_H
+#define LOG_ENTRY_H
 
-#include <ostream>
+#include <iostream>
 #include <string>
-#include <vector>
 
 class LogEntry {
 private:
     int timestamp_;
     std::string ip_;
     bool failed_;
+
     bool hasValidIpv4Format() const {
         if (ip_.empty() || ip_.size() > 15) {
             return false;
@@ -148,38 +149,8 @@ public:
         }
     }
 
-    void updateIpStats(std::vector<std::string>& ips, std::vector<int>& totals, std::vector<int>& failedCounts) const {
-        for (std::size_t j = 0; j < ips.size(); j++) {
-            if (ips[j] == ip_) {
-                totals[j]++;
-                if (failed_) {
-                    failedCounts[j]++;
-                }
-                return;
-            }
-        }
-        ips.push_back(ip_);
-        totals.push_back(1);
-        failedCounts.push_back(failed_ ? 1 : 0);
-    }
-
-    void countIp(std::vector<std::string>& ips, std::vector<int>& counts) const {
-        for (std::size_t j = 0; j < ips.size(); j++) {
-            if (ips[j] == ip_) {
-                counts[j]++;
-                return;
-            }
-        }
-        ips.push_back(ip_);
-        counts.push_back(1);
-    }
-
     void printAlertFormat(std::ostream& os, const std::string& category, const std::string& severity, const std::string& message) const {
-        os << "[" << category << ":" << severity << "] IP " << ip_ << " - " << message << "\n"
-           << "      Time      : " << formatTime() << "\n"
-           << "      Source IP : " << ip_ << "\n"
-           << "      Category  : " << category << "\n"
-           << "      Severity  : " << severity;
+        os << "[" << category << ":" << severity << "] IP " << ip_ << " - " << message << " (at " << formatTime() << ")";
     }
 
     friend std::ostream& operator<<(std::ostream& os, const LogEntry& entry) {
@@ -187,3 +158,5 @@ public:
         return os;
     }
 };
+
+#endif
