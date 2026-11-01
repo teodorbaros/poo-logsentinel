@@ -150,37 +150,29 @@ public:
     }
 
     void updateIpStats(std::vector<std::string>& ips, std::vector<int>& totals, std::vector<int>& failedCounts) const {
-        std::size_t idx = ips.size();
         for (std::size_t j = 0; j < ips.size(); j++) {
             if (ips[j] == ip_) {
-                idx = j;
-                break;
+                totals[j]++;
+                if (failed_) {
+                    failedCounts[j]++;
+                }
+                return;
             }
         }
-        if (idx == ips.size()) {
-            ips.push_back(ip_);
-            totals.push_back(0);
-            failedCounts.push_back(0);
-        }
-        totals[idx]++;
-        if (failed_) {
-            failedCounts[idx]++;
-        }
+        ips.push_back(ip_);
+        totals.push_back(1);
+        failedCounts.push_back(failed_ ? 1 : 0);
     }
 
     void countIp(std::vector<std::string>& ips, std::vector<int>& counts) const {
-        std::size_t idx = ips.size();
         for (std::size_t j = 0; j < ips.size(); j++) {
             if (ips[j] == ip_) {
-                idx = j;
-                break;
+                counts[j]++;
+                return;
             }
         }
-        if (idx == ips.size()) {
-            ips.push_back(ip_);
-            counts.push_back(0);
-        }
-        counts[idx]++;
+        ips.push_back(ip_);
+        counts.push_back(1);
     }
 
     void printAlertFormat(std::ostream& os, const std::string& category, const std::string& severity, const std::string& message) const {
