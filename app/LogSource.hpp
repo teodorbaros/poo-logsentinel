@@ -129,27 +129,10 @@ public:
         std::vector<int> ipFailed;
         int failed = 0;
 
+        int counted = 0;
         for (std::size_t i = 0; i < entries_.size(); i++) {
-            const LogEntry& e = entries_[i];
-            if (e.failed_) {
-                failed++;
-            }
-            std::size_t idx = ips.size();
-            for (std::size_t j = 0; j < ips.size(); j++) {
-                if (ips[j] == e.ip_) {
-                    idx = j;
-                    break;
-                }
-            }
-            if (idx == ips.size()) {
-                ips.push_back(e.ip_);
-                ipTotal.push_back(0);
-                ipFailed.push_back(0);
-            }
-            ipTotal[idx]++;
-            if (e.failed_) {
-                ipFailed[idx]++;
-            }
+            entries_[i].updateCounters(counted, failed);
+            entries_[i].updateIpStats(ips, ipTotal, ipFailed);
         }
 
         int total = static_cast<int>(entries_.size());
