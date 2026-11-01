@@ -1,8 +1,8 @@
 #include <iostream>
-#include "SiemConsoleApp.hpp"
+#include "SiemConsoleApp.h"
 
 int main() {
-    SiemConsoleApp app("clean_auth.log.txt", "clean_fw.log.txt");
+    SiemConsoleApp app("sshd_stream", "ufw_stream");
     app.run(std::cin);
     std::cout << "\n=== Final SIEM Session State ===\n" << app << "\n";
     return 0;
