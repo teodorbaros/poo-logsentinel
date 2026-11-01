@@ -1,4 +1,6 @@
 #pragma once
+
+
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -164,17 +166,16 @@ public:
                 ips.push_back(e.sourceIp_);
             }
 
-            int pidx = -1;
+            std::size_t pidx = ports.size();
             for (std::size_t j = 0; j < ports.size(); j++) {
                 if (ports[j] == e.destPort_) {
-                    pidx = static_cast<int>(j);
+                    pidx = j;
                     break;
                 }
             }
-            if (pidx < 0) {
+            if (pidx == ports.size()) {
                 ports.push_back(e.destPort_);
                 portHits.push_back(0);
-                pidx = static_cast<int>(ports.size()) - 1;
             }
             portHits[pidx]++;
         }
@@ -185,10 +186,10 @@ public:
         int allowPct = 100 - blockPct;
         int criticalPct = static_cast<int>(100.0 * criticalPackets / total + 0.5);
 
-        int topPort = 0;
+        std::size_t topPort = 0;
         for (std::size_t j = 1; j < ports.size(); j++) {
             if (portHits[j] > portHits[topPort]) {
-                topPort = static_cast<int>(j);
+                topPort = j;
             }
         }
 
@@ -212,5 +213,6 @@ public:
         return os;
     }
 };
+
 
 
