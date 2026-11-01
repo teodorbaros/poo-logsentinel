@@ -2,11 +2,9 @@
 
 #include <ostream>
 #include <string>
+#include <vector>
 
 class LogEntry {
-    friend class LogSource;
-    friend class Analyzer;
-
 private:
     int timestamp_;
     std::string ip_;
@@ -151,6 +149,40 @@ public:
         }
     }
 
+    void updateIpStats(std::vector<std::string>& ips, std::vector<int>& totals, std::vector<int>& failedCounts) const {
+        std::size_t idx = ips.size();
+        for (std::size_t j = 0; j < ips.size(); j++) {
+            if (ips[j] == ip_) {
+                idx = j;
+                break;
+            }
+        }
+        if (idx == ips.size()) {
+            ips.push_back(ip_);
+            totals.push_back(0);
+            failedCounts.push_back(0);
+        }
+        totals[idx]++;
+        if (failed_) {
+            failedCounts[idx]++;
+        }
+    }
+
+    void countIp(std::vector<std::string>& ips, std::vector<int>& counts) const {
+        std::size_t idx = ips.size();
+        for (std::size_t j = 0; j < ips.size(); j++) {
+            if (ips[j] == ip_) {
+                idx = j;
+                break;
+            }
+        }
+        if (idx == ips.size()) {
+            ips.push_back(ip_);
+            counts.push_back(0);
+        }
+        counts[idx]++;
+    }
+
     void printAlertFormat(std::ostream& os, const std::string& category, const std::string& severity, const std::string& message) const {
         os << "[" << category << ":" << severity << "] IP " << ip_ << " - " << message << "\n"
            << "      Time      : " << formatTime() << "\n"
@@ -164,4 +196,3 @@ public:
         return os;
     }
 };
-
