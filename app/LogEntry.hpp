@@ -9,9 +9,8 @@ private:
     int timestamp_;
     std::string ip_;
     bool failed_;
-
-    static bool isValidIpv4Format(const std::string& ip) {
-        if (ip.empty() || ip.size() > 15) {
+    bool hasValidIpv4Format() const {
+        if (ip_.empty() || ip_.size() > 15) {
             return false;
         }
 
@@ -19,8 +18,8 @@ private:
         int currentOctet = 0;
         int digitsInOctet = 0;
 
-        for (std::size_t i = 0; i < ip.size(); i++) {
-            char c = ip[i];
+        for (std::size_t i = 0; i < ip_.size(); i++) {
+            char c = ip_[i];
             if (c == '.') {
                 if (digitsInOctet == 0 || currentOctet > 255) {
                     return false;
@@ -113,7 +112,7 @@ private:
 public:
     LogEntry(const std::string& month, int day, int hour, int minute, int second, const std::string& ip, bool failed)
         : timestamp_(-1), ip_(ip), failed_(failed) {
-        if (isValidIpv4Format(ip)) {
+        if (hasValidIpv4Format()) {
             setTimestamp(month, day, hour, minute, second);
         }
     }
