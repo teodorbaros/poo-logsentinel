@@ -1,5 +1,4 @@
 #pragma once
-
 #include <ostream>
 #include <string>
 #include <vector>
@@ -40,37 +39,6 @@ private:
             }
         }
         return -1;
-    }
-
-    void countSeverities(const std::vector<Alert>& alerts, int& medium, int& high, int& critical) const {
-        for (std::size_t i = 0; i < alerts.size(); i++) {
-            if (alerts[i].severity_ == "CRITICAL") {
-                critical++;
-            } else if (alerts[i].severity_ == "HIGH") {
-                high++;
-            } else {
-                medium++;
-            }
-        }
-    }
-
-    void addIpCounts(const std::vector<Alert>& alerts, std::vector<std::string>& ips, std::vector<int>& counts) const {
-        for (std::size_t i = 0; i < alerts.size(); i++) {
-            const std::string& ip = alerts[i].trigger_.ip_;
-            int idx = -1;
-            for (std::size_t j = 0; j < ips.size(); j++) {
-                if (ips[j] == ip) {
-                    idx = static_cast<int>(j);
-                    break;
-                }
-            }
-            if (idx < 0) {
-                ips.push_back(ip);
-                counts.push_back(0);
-                idx = static_cast<int>(ips.size()) - 1;
-            }
-            counts[idx]++;
-        }
     }
 
     static std::string makeBar(double percent) {
@@ -305,23 +273,48 @@ public:
             return;
         }
 
+        std::vector<Alert> allAlerts = sshAlerts_;
+        for (std::size_t i = 0; i < fwAlerts_.size(); i++) {
+            allAlerts.push_back(fwAlerts_[i]);
+        }
+        for (std::size_t i = 0; i < correlatedAlerts_.size(); i++) {
+            allAlerts.push_back(correlatedAlerts_[i]);
+        }
+
         int medium = 0;
         int high = 0;
         int critical = 0;
-        countSeverities(sshAlerts_, medium, high, critical);
-        countSeverities(fwAlerts_, medium, high, critical);
-        countSeverities(correlatedAlerts_, medium, high, critical);
-
         std::vector<std::string> ips;
         std::vector<int> counts;
-        addIpCounts(sshAlerts_, ips, counts);
-        addIpCounts(fwAlerts_, ips, counts);
-        addIpCounts(correlatedAlerts_, ips, counts);
 
-        int top = 0;
+        for (std::size_t i = 0; i < allAlerts.size(); i++) {
+            if (allAlerts[i].severity_ == "CRITICAL") {
+                critical++;
+            } else if (allAlerts[i].severity_ == "HIGH") {
+                high++;
+            } else {
+                medium++;
+            }
+
+            const std::string& ip = allAlerts[i].trigger_.ip_;
+            std::size_t idx = ips.size();
+            for (std::size_t j = 0; j < ips.size(); j++) {
+                if (ips[j] == ip) {
+                    idx = j;
+                    break;
+                }
+            }
+            if (idx == ips.size()) {
+                ips.push_back(ip);
+                counts.push_back(0);
+            }
+            counts[idx]++;
+        }
+
+        std::size_t top = 0;
         for (std::size_t j = 1; j < ips.size(); j++) {
             if (counts[j] > counts[top]) {
-                top = static_cast<int>(j);
+                top = j;
             }
         }
 
