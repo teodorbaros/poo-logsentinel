@@ -1,4 +1,5 @@
 #pragma once
+
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -133,18 +134,17 @@ public:
             if (e.failed_) {
                 failed++;
             }
-            int idx = -1;
+            std::size_t idx = ips.size();
             for (std::size_t j = 0; j < ips.size(); j++) {
                 if (ips[j] == e.ip_) {
-                    idx = static_cast<int>(j);
+                    idx = j;
                     break;
                 }
             }
-            if (idx < 0) {
+            if (idx == ips.size()) {
                 ips.push_back(e.ip_);
                 ipTotal.push_back(0);
                 ipFailed.push_back(0);
-                idx = static_cast<int>(ips.size()) - 1;
             }
             ipTotal[idx]++;
             if (e.failed_) {
@@ -157,10 +157,10 @@ public:
         int failPct = static_cast<int>(100.0 * failed / total + 0.5);
         int successPct = 100 - failPct;
 
-        int worst = 0;
+        std::size_t worst = 0;
         for (std::size_t j = 1; j < ips.size(); j++) {
             if (ipFailed[j] > ipFailed[worst]) {
-                worst = static_cast<int>(j);
+                worst = j;
             }
         }
 
@@ -168,7 +168,7 @@ public:
         os << "  Successful logins  : " << success << " (" << successPct << "%) " << makeBar(successPct) << "\n";
         os << "  Failed logins      : " << failed << " (" << failPct << "%) " << makeBar(failPct) << "\n";
         os << "  Distinct source IPs: " << ips.size() << "\n";
-        os << "  Avg attempts / IP  : " << (static_cast<int>(10.0 * total / ips.size() + 0.5) / 10.0) << "\n";
+        os << "  Avg attempts / IP  : " << (static_cast<int>(10.0 * total / static_cast<double>(ips.size()) + 0.5) / 10.0) << "\n";
         os << "  Most failures from : " << ips[worst] << " (" << ipFailed[worst]
            << " failed out of " << ipTotal[worst] << " attempts)\n";
         os << "  First event        : " << entries_[0] << "\n";
