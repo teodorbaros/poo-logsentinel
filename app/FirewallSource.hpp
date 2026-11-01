@@ -1,15 +1,14 @@
-#pragma once
+#ifndef FIREWALL_SOURCE_H
+#define FIREWALL_SOURCE_H
 
-#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
-
-#include "FirewallEntry.hpp"
+#include "FirewallEntry.h"
 
 class FirewallSource {
 private:
-    std::string filePath_;
+    std::string sourceName_;
     std::vector<FirewallEntry> entries_;
     int ignoredLines_;
 
@@ -25,25 +24,34 @@ private:
         }
     }
 
-    static std::string makeBar(double percent) {
-        int filled = static_cast<int>(percent / 5.0);
+    std::string makeBar(int count, int total) const {
+        if (total <= 0 || sourceName_.empty()) {
+            return "[          ]";
+        }
+        int filled = (count * 10) / total;
+        if (filled < 0) {
+            filled = 0;
+        }
+        if (filled > 10) {
+            filled = 10;
+        }
         std::string bar = "[";
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 10; i++) {
             if (i < filled) {
-                bar = bar + "#";
+                bar += '#';
             } else {
-                bar = bar + "-";
+                bar += ' ';
             }
         }
-        return bar + "]";
+        bar += "]";
+        return bar;
     }
 
 public:
-    explicit FirewallSource(const std::string& filePath)
-        : filePath_(filePath), ignoredLines_(0) {}
+    explicit FirewallSource(const std::string& sourceName)
+        : sourceName_(sourceName), ignoredLines_(0) {}
 
     void ingestFromStream(std::istream& in, int packetCount) {
-        std::ofstream outFile(filePath_, std::ios::app);
         for (int i = 0; i < packetCount; i++) {
             std::string month;
             std::string ip;
@@ -56,10 +64,6 @@ public:
             bool blocked = false;
 
             if (in >> month >> day >> hour >> minute >> second >> ip >> port >> proto >> blocked) {
-                if (outFile.is_open()) {
-                    outFile << month << " " << day << " " << hour << " " << minute << " "
-                            << second << " " << ip << " " << port << " " << proto << " " << blocked << "\n";
-                }
                 FirewallEntry entry(month, day, hour, minute, second, ip, port, proto, blocked);
                 if (entry.isValid()) {
                     entries_.push_back(entry);
@@ -71,43 +75,20 @@ public:
         sortChronologically();
     }
 
-    bool loadFromFile() {
-        std::ifstream file(filePath_);
-        if (!file.is_open()) {
-            return false;
+    int getEntryCount() const {
+        int count = 0;
+        for (std::size_t i = 0; i < entries_.size(); i++) {
+            count++;
         }
-        entries_.clear();
-        ignoredLines_ = 0;
-
-        std::string month;
-        std::string ip;
-        std::string proto;
-        int day = 0;
-        int hour = 0;
-        int minute = 0;
-        int second = 0;
-        int port = 0;
-        bool blocked = false;
-
-        while (file >> month >> day >> hour >> minute >> second >> ip >> port >> proto >> blocked) {
-            FirewallEntry entry(month, day, hour, minute, second, ip, port, proto, blocked);
-            if (entry.isValid()) {
-                entries_.push_back(entry);
-            } else {
-                ignoredLines_++;
-            }
-        }
-
-        sortChronologically();
-        return true;
+        return count;
     }
 
-    std::size_t getEntryCount() const {
-        return entries_.size();
-    }
-
-    const FirewallEntry& getEntryAt(std::size_t index) const {
-        return entries_[index];
+    const FirewallEntry& getEntryAt(int index) const {
+        std::size_t idx = 0;
+        for (int i = 0; i < index; i++) {
+            idx++;
+        }
+        return entries_[idx];
     }
 
     int printPacketsForIp(std::ostream& os, const std::string& targetIp) const {
@@ -122,56 +103,14 @@ public:
         return matched;
     }
 
-    void printStatistics(std::ostream& os) const {
-        os << "--- Firewall Statistics ---\n";
-        if (entries_.empty()) {
-            os << "  (no data)\n";
-            return;
-        }
-
-        std::vector<std::string> ips;
-        std::vector<int> ports;
-        std::vector<int> portHits;
-        int blocked = 0;
-        int criticalPackets = 0;
-        int tcp = 0;
-        int udp = 0;
-        int icmp = 0;
-
-        for (std::size_t i = 0; i < entries_.size(); i++) {
-            entries_[i].updateFirewallStats(ips, ports, portHits, blocked, criticalPackets, tcp, udp, icmp);
-        }
-
-        int total = static_cast<int>(entries_.size());
-        int allowed = total - blocked;
-        int blockPct = static_cast<int>(100.0 * blocked / total + 0.5);
-        int allowPct = 100 - blockPct;
-        int criticalPct = static_cast<int>(100.0 * criticalPackets / total + 0.5);
-
-        std::size_t topPort = 0;
-        for (std::size_t j = 1; j < ports.size(); j++) {
-            if (portHits[j] > portHits[topPort]) {
-                topPort = j;
-            }
-        }
-
-        os << "  Total packets      : " << total << "\n";
-        os << "  Allowed            : " << allowed << " (" << allowPct << "%) " << makeBar(allowPct) << "\n";
-        os << "  Blocked            : " << blocked << " (" << blockPct << "%) " << makeBar(blockPct) << "\n";
-        os << "  Critical-port hits : " << criticalPackets << " (" << criticalPct << "%) " << makeBar(criticalPct) << "\n";
-        os << "  Distinct source IPs: " << ips.size() << "\n";
-        os << "  Distinct ports     : " << ports.size() << "\n";
-        os << "  Most targeted port : " << ports[topPort] << " (" << portHits[topPort] << " packets)\n";
-        os << "  Protocols          : TCP=" << tcp << ", UDP=" << udp << ", ICMP=" << icmp << "\n";
-        os << "  First packet       : " << entries_[0] << "\n";
-        os << "  Last packet        : " << entries_[entries_.size() - 1] << "\n";
-    }
-
     friend std::ostream& operator<<(std::ostream& os, const FirewallSource& source) {
-        os << "[FW Source]\n"
-           << "    File            : " << source.filePath_ << "\n"
-           << "    Valid packets   : " << source.entries_.size() << "\n"
-           << "    Invalid ignored : " << source.ignoredLines_;
+        int validCount = source.getEntryCount();
+        int totalProcessed = validCount + source.ignoredLines_;
+        os << "[FW  Stream: " << source.sourceName_ << "] "
+           << source.makeBar(validCount, totalProcessed) << " "
+           << validCount << " valid packets (" << source.ignoredLines_ << " invalid ignored)";
         return os;
     }
 };
+
+#endif
