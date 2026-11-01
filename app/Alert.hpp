@@ -1,6 +1,4 @@
-#ifndef ALERT_HPP
-#define ALERT_HPP
-
+#pragma once
 #include <iostream>
 #include <string>
 #include "LogEntry.hpp"
@@ -75,4 +73,4 @@ public:
     }
 };
 
-#endif // ALERT_HPP
+
