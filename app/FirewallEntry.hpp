@@ -13,9 +13,8 @@ private:
     int destPort_;
     std::string protocol_;
     bool blocked_;
-
-    static bool isValidIpv4Format(const std::string& ip) {
-        if (ip.empty() || ip.size() > 15) {
+    bool hasValidIpv4Format() const {
+        if (sourceIp_.empty() || sourceIp_.size() > 15) {
             return false;
         }
 
@@ -23,8 +22,8 @@ private:
         int currentOctet = 0;
         int digitsInOctet = 0;
 
-        for (std::size_t i = 0; i < ip.size(); i++) {
-            char c = ip[i];
+        for (std::size_t i = 0; i < sourceIp_.size(); i++) {
+            char c = sourceIp_[i];
             if (c == '.') {
                 if (digitsInOctet == 0 || currentOctet > 255) {
                     return false;
@@ -46,9 +45,9 @@ private:
         return (dots == 3 && digitsInOctet > 0 && currentOctet <= 255);
     }
 
-    static bool isValidPortAndProtocol(int port, const std::string& proto) {
-        bool validPort = (port >= 1 && port <= 65535);
-        bool validProto = (proto == "TCP" || proto == "UDP" || proto == "ICMP");
+    bool hasValidPortAndProtocol() const {
+        bool validPort = (destPort_ >= 1 && destPort_ <= 65535);
+        bool validProto = (protocol_ == "TCP" || protocol_ == "UDP" || protocol_ == "ICMP");
         return validPort && validProto;
     }
 
@@ -124,7 +123,7 @@ public:
     FirewallEntry(const std::string& month, int day, int hour, int minute, int second,
                   const std::string& sourceIp, int destPort, const std::string& protocol, bool blocked)
         : timestamp_(-1), sourceIp_(sourceIp), destPort_(destPort), protocol_(protocol), blocked_(blocked) {
-        if (isValidIpv4Format(sourceIp) && isValidPortAndProtocol(destPort, protocol)) {
+        if (hasValidIpv4Format() && hasValidPortAndProtocol()) {
             setTimestamp(month, day, hour, minute, second);
         }
     }
