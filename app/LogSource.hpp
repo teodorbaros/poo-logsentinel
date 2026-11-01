@@ -1,12 +1,10 @@
 #pragma once
 #include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
 
 #include "LogEntry.hpp"
-#include "Utils.hpp"
 
 class LogSource {
 private:
@@ -24,6 +22,19 @@ private:
                 }
             }
         }
+    }
+
+    static std::string makeBar(double percent) {
+        int filled = static_cast<int>(percent / 5.0);
+        std::string bar = "[";
+        for (int i = 0; i < 20; i++) {
+            if (i < filled) {
+                bar = bar + "#";
+            } else {
+                bar = bar + "-";
+            }
+        }
+        return bar + "]";
     }
 
 public:
@@ -143,8 +154,8 @@ public:
 
         int total = static_cast<int>(entries_.size());
         int success = total - failed;
-        double failRate = 100.0 * failed / total;
-        double successRate = 100.0 - failRate;
+        int failPct = static_cast<int>(100.0 * failed / total + 0.5);
+        int successPct = 100 - failPct;
 
         int worst = 0;
         for (std::size_t j = 1; j < ips.size(); j++) {
@@ -153,23 +164,16 @@ public:
             }
         }
 
-        std::ios::fmtflags oldFlags = os.flags();
-        std::streamsize oldPrecision = os.precision();
-        os << std::fixed << std::setprecision(1);
-
         os << "  Total attempts     : " << total << "\n";
-        os << "  Successful logins  : " << success << " (" << successRate << "%) " << makeBar(successRate) << "\n";
-        os << "  Failed logins      : " << failed << " (" << failRate << "%) " << makeBar(failRate) << "\n";
+        os << "  Successful logins  : " << success << " (" << successPct << "%) " << makeBar(successPct) << "\n";
+        os << "  Failed logins      : " << failed << " (" << failPct << "%) " << makeBar(failPct) << "\n";
         os << "  Distinct source IPs: " << ips.size() << "\n";
-        os << "  Avg attempts / IP  : " << (1.0 * total / ips.size()) << "\n";
+        os << "  Avg attempts / IP  : " << (static_cast<int>(10.0 * total / ips.size() + 0.5) / 10.0) << "\n";
         os << "  Most failures from : " << ips[worst] << " (" << ipFailed[worst]
            << " failed out of " << ipTotal[worst] << " attempts)\n";
-        os << "  First event        : " << entries_.front() << "\n";
-        os << "  Last event         : " << entries_.back() << "\n";
-        os << "  Observed span      : " << entries_.back().secondsSince(entries_.front()) << "s\n";
-
-        os.flags(oldFlags);
-        os.precision(oldPrecision);
+        os << "  First event        : " << entries_[0] << "\n";
+        os << "  Last event         : " << entries_[entries_.size() - 1] << "\n";
+        os << "  Observed span      : " << entries_[entries_.size() - 1].secondsSince(entries_[0]) << "s\n";
     }
 
     friend std::ostream& operator<<(std::ostream& os, const LogSource& source) {
@@ -180,4 +184,3 @@ public:
         return os;
     }
 };
-
