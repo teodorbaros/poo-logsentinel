@@ -1,11 +1,11 @@
-#ifndef PORT_SCAN_TRACKER_HPP
-#define PORT_SCAN_TRACKER_HPP
+#pragma once
 
-#include <iostream>
+#include <ostream>
 #include <sstream>
 #include <vector>
-#include "FirewallEntry.hpp"
+
 #include "Alert.hpp"
+#include "FirewallEntry.hpp"
 
 class PortScanTracker {
 private:
@@ -48,10 +48,12 @@ public:
     }
 
     friend std::ostream& operator<<(std::ostream& os, const PortScanTracker& tracker) {
-        os << tracker.firstPacket_ << " -> " << tracker.distinctPorts_.size()
-           << " distinct ports (" << tracker.blockedPackets_ << " blocked)";
+        os << "[FW Tracker]\n"
+           << "      Window start   : " << tracker.firstPacket_ << "\n"
+           << "      Distinct ports : " << tracker.distinctPorts_.size() << "\n"
+           << "      Blocked packets: " << tracker.blockedPackets_ << "\n"
+           << "      Critical hits  : " << tracker.criticalPortHits_;
         return os;
     }
 };
 
-#endif // PORT_SCAN_TRACKER_HPP
