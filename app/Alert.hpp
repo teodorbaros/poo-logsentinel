@@ -13,19 +13,21 @@ private:
     std::string message_;
     LogEntry trigger_;
 
-    static std::string computeSeverityLabel(int score) {
+   void setSeverityByScore(int score) {
         if (score >= 8) {
-            return "CRITICAL";
+            severity_ = "CRITICAL";
+        } else if (score >= 5) {
+            severity_ = "HIGH";
+        } else {
+            severity_ = "MEDIUM";
         }
-        if (score >= 5) {
-            return "HIGH";
-        }
-        return "MEDIUM";
     }
 
 public:
-    Alert(const std::string& category, const std::string& message, const LogEntry& trigger, int riskScore = 5)
-        : category_(category), severity_(computeSeverityLabel(riskScore)), message_(message), trigger_(trigger) {}
+   Alert(const std::string& category, const std::string& message, const LogEntry& trigger, int riskScore = 5)
+        : category_(category), severity_("MEDIUM"), message_(message), trigger_(trigger) {
+        setSeverityByScore(riskScore);
+    }
 
     Alert(const Alert& other)
         : category_(other.category_), severity_(other.severity_), message_(other.message_), trigger_(other.trigger_) {}
