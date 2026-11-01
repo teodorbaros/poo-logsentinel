@@ -1,4 +1,5 @@
 #pragma once
+
 #include <ostream>
 #include <string>
 #include <vector>
@@ -288,27 +289,7 @@ public:
         std::vector<int> counts;
 
         for (std::size_t i = 0; i < allAlerts.size(); i++) {
-            if (allAlerts[i].severity_ == "CRITICAL") {
-                critical++;
-            } else if (allAlerts[i].severity_ == "HIGH") {
-                high++;
-            } else {
-                medium++;
-            }
-
-            const std::string& ip = allAlerts[i].trigger_.ip_;
-            std::size_t idx = ips.size();
-            for (std::size_t j = 0; j < ips.size(); j++) {
-                if (ips[j] == ip) {
-                    idx = j;
-                    break;
-                }
-            }
-            if (idx == ips.size()) {
-                ips.push_back(ip);
-                counts.push_back(0);
-            }
-            counts[idx]++;
+            allAlerts[i].updateAlertStats(medium, high, critical, ips, counts);
         }
 
         std::size_t top = 0;
