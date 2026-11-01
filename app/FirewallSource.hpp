@@ -1,13 +1,10 @@
 #pragma once
-
 #include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
 
 #include "FirewallEntry.hpp"
-#include "Utils.hpp"
 
 class FirewallSource {
 private:
@@ -25,6 +22,19 @@ private:
                 }
             }
         }
+    }
+
+    static std::string makeBar(double percent) {
+        int filled = static_cast<int>(percent / 5.0);
+        std::string bar = "[";
+        for (int i = 0; i < 20; i++) {
+            if (i < filled) {
+                bar = bar + "#";
+            } else {
+                bar = bar + "-";
+            }
+        }
+        return bar + "]";
     }
 
 public:
@@ -171,9 +181,9 @@ public:
 
         int total = static_cast<int>(entries_.size());
         int allowed = total - blocked;
-        double blockRate = 100.0 * blocked / total;
-        double allowRate = 100.0 - blockRate;
-        double criticalRate = 100.0 * criticalPackets / total;
+        int blockPct = static_cast<int>(100.0 * blocked / total + 0.5);
+        int allowPct = 100 - blockPct;
+        int criticalPct = static_cast<int>(100.0 * criticalPackets / total + 0.5);
 
         int topPort = 0;
         for (std::size_t j = 1; j < ports.size(); j++) {
@@ -182,23 +192,16 @@ public:
             }
         }
 
-        std::ios::fmtflags oldFlags = os.flags();
-        std::streamsize oldPrecision = os.precision();
-        os << std::fixed << std::setprecision(1);
-
         os << "  Total packets      : " << total << "\n";
-        os << "  Allowed            : " << allowed << " (" << allowRate << "%) " << makeBar(allowRate) << "\n";
-        os << "  Blocked            : " << blocked << " (" << blockRate << "%) " << makeBar(blockRate) << "\n";
-        os << "  Critical-port hits : " << criticalPackets << " (" << criticalRate << "%) " << makeBar(criticalRate) << "\n";
+        os << "  Allowed            : " << allowed << " (" << allowPct << "%) " << makeBar(allowPct) << "\n";
+        os << "  Blocked            : " << blocked << " (" << blockPct << "%) " << makeBar(blockPct) << "\n";
+        os << "  Critical-port hits : " << criticalPackets << " (" << criticalPct << "%) " << makeBar(criticalPct) << "\n";
         os << "  Distinct source IPs: " << ips.size() << "\n";
         os << "  Distinct ports     : " << ports.size() << "\n";
         os << "  Most targeted port : " << ports[topPort] << " (" << portHits[topPort] << " packets)\n";
         os << "  Protocols          : TCP=" << tcp << ", UDP=" << udp << ", ICMP=" << icmp << "\n";
-        os << "  First packet       : " << entries_.front() << "\n";
-        os << "  Last packet        : " << entries_.back() << "\n";
-
-        os.flags(oldFlags);
-        os.precision(oldPrecision);
+        os << "  First packet       : " << entries_[0] << "\n";
+        os << "  Last packet        : " << entries_[entries_.size() - 1] << "\n";
     }
 
     friend std::ostream& operator<<(std::ostream& os, const FirewallSource& source) {
@@ -209,4 +212,5 @@ public:
         return os;
     }
 };
+
 
