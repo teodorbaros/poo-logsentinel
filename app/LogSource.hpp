@@ -1,15 +1,14 @@
-#pragma once
+#ifndef LOG_SOURCE_H
+#define LOG_SOURCE_H
 
-#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
-
-#include "LogEntry.hpp"
+#include "LogEntry.h"
 
 class LogSource {
 private:
-    std::string filePath_;
+    std::string sourceName_;
     std::vector<LogEntry> entries_;
     int ignoredLines_;
 
@@ -25,25 +24,34 @@ private:
         }
     }
 
-    static std::string makeBar(double percent) {
-        int filled = static_cast<int>(percent / 5.0);
+    std::string makeBar(int count, int total) const {
+        if (total <= 0 || sourceName_.empty()) {
+            return "[          ]";
+        }
+        int filled = (count * 10) / total;
+        if (filled < 0) {
+            filled = 0;
+        }
+        if (filled > 10) {
+            filled = 10;
+        }
         std::string bar = "[";
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 10; i++) {
             if (i < filled) {
-                bar = bar + "#";
+                bar += '#';
             } else {
-                bar = bar + "-";
+                bar += ' ';
             }
         }
-        return bar + "]";
+        bar += "]";
+        return bar;
     }
 
 public:
-    explicit LogSource(const std::string& filePath)
-        : filePath_(filePath), ignoredLines_(0) {}
+    explicit LogSource(const std::string& sourceName)
+        : sourceName_(sourceName), ignoredLines_(0) {}
 
     void ingestFromStream(std::istream& in, int lineCount) {
-        std::ofstream outFile(filePath_, std::ios::app);
         for (int i = 0; i < lineCount; i++) {
             std::string month;
             std::string ip;
@@ -54,10 +62,6 @@ public:
             bool failed = false;
 
             if (in >> month >> day >> hour >> minute >> second >> ip >> failed) {
-                if (outFile.is_open()) {
-                    outFile << month << " " << day << " " << hour << " "
-                            << minute << " " << second << " " << ip << " " << failed << "\n";
-                }
                 LogEntry entry(month, day, hour, minute, second, ip, failed);
                 if (entry.isValid()) {
                     entries_.push_back(entry);
@@ -69,41 +73,20 @@ public:
         sortChronologically();
     }
 
-    bool loadFromFile() {
-        std::ifstream file(filePath_);
-        if (!file.is_open()) {
-            return false;
+    int getEntryCount() const {
+        int count = 0;
+        for (std::size_t i = 0; i < entries_.size(); i++) {
+            count++;
         }
-        entries_.clear();
-        ignoredLines_ = 0;
-
-        std::string month;
-        std::string ip;
-        int day = 0;
-        int hour = 0;
-        int minute = 0;
-        int second = 0;
-        bool failed = false;
-
-        while (file >> month >> day >> hour >> minute >> second >> ip >> failed) {
-            LogEntry entry(month, day, hour, minute, second, ip, failed);
-            if (entry.isValid()) {
-                entries_.push_back(entry);
-            } else {
-                ignoredLines_++;
-            }
-        }
-
-        sortChronologically();
-        return true;
+        return count;
     }
 
-    std::size_t getEntryCount() const {
-        return entries_.size();
-    }
-
-    const LogEntry& getEntryAt(std::size_t index) const {
-        return entries_[index];
+    const LogEntry& getEntryAt(int index) const {
+        std::size_t idx = 0;
+        for (int i = 0; i < index; i++) {
+            idx++;
+        }
+        return entries_[idx];
     }
 
     int printEntriesForIp(std::ostream& os, const std::string& targetIp) const {
@@ -117,53 +100,14 @@ public:
         return matched;
     }
 
-    void printStatistics(std::ostream& os) const {
-        os << "--- SSH Statistics ---\n";
-        if (entries_.empty()) {
-            os << "  (no data)\n";
-            return;
-        }
-
-        std::vector<std::string> ips;
-        std::vector<int> ipTotal;
-        std::vector<int> ipFailed;
-        int failed = 0;
-
-        int counted = 0;
-        for (std::size_t i = 0; i < entries_.size(); i++) {
-            entries_[i].updateCounters(counted, failed);
-            entries_[i].updateIpStats(ips, ipTotal, ipFailed);
-        }
-
-        int total = static_cast<int>(entries_.size());
-        int success = total - failed;
-        int failPct = static_cast<int>(100.0 * failed / total + 0.5);
-        int successPct = 100 - failPct;
-
-        std::size_t worst = 0;
-        for (std::size_t j = 1; j < ips.size(); j++) {
-            if (ipFailed[j] > ipFailed[worst]) {
-                worst = j;
-            }
-        }
-
-        os << "  Total attempts     : " << total << "\n";
-        os << "  Successful logins  : " << success << " (" << successPct << "%) " << makeBar(successPct) << "\n";
-        os << "  Failed logins      : " << failed << " (" << failPct << "%) " << makeBar(failPct) << "\n";
-        os << "  Distinct source IPs: " << ips.size() << "\n";
-        os << "  Avg attempts / IP  : " << (static_cast<int>(10.0 * total / static_cast<double>(ips.size()) + 0.5) / 10.0) << "\n";
-        os << "  Most failures from : " << ips[worst] << " (" << ipFailed[worst]
-           << " failed out of " << ipTotal[worst] << " attempts)\n";
-        os << "  First event        : " << entries_[0] << "\n";
-        os << "  Last event         : " << entries_[entries_.size() - 1] << "\n";
-        os << "  Observed span      : " << entries_[entries_.size() - 1].secondsSince(entries_[0]) << "s\n";
-    }
-
     friend std::ostream& operator<<(std::ostream& os, const LogSource& source) {
-        os << "[SSH Source]\n"
-           << "    File            : " << source.filePath_ << "\n"
-           << "    Valid entries   : " << source.entries_.size() << "\n"
-           << "    Invalid ignored : " << source.ignoredLines_;
+        int validCount = source.getEntryCount();
+        int totalProcessed = validCount + source.ignoredLines_;
+        os << "[SSH Stream: " << source.sourceName_ << "] "
+           << source.makeBar(validCount, totalProcessed) << " "
+           << validCount << " valid entries (" << source.ignoredLines_ << " invalid ignored)";
         return os;
     }
 };
+
+#endif
