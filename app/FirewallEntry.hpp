@@ -1,10 +1,10 @@
-#pragma once
+#ifndef FIREWALL_ENTRY_H
+#define FIREWALL_ENTRY_H
 
-#include <ostream>
+#include <iostream>
 #include <string>
 #include <vector>
-
-#include "LogEntry.hpp"
+#include "LogEntry.h"
 
 class FirewallEntry {
 private:
@@ -13,6 +13,7 @@ private:
     int destPort_;
     std::string protocol_;
     bool blocked_;
+
     bool hasValidIpv4Format() const {
         if (sourceIp_.empty() || sourceIp_.size() > 15) {
             return false;
@@ -187,47 +188,6 @@ public:
         }
     }
 
-    void updateFirewallStats(std::vector<std::string>& ips, std::vector<int>& ports, std::vector<int>& portHits,
-                             int& blockedCount, int& criticalPackets, int& tcp, int& udp, int& icmp) const {
-        if (blocked_) {
-            blockedCount++;
-        }
-        if (targetsCriticalService()) {
-            criticalPackets++;
-        }
-        if (protocol_ == "TCP") {
-            tcp++;
-        } else if (protocol_ == "UDP") {
-            udp++;
-        } else if (protocol_ == "ICMP") {
-            icmp++;
-        }
-
-        bool ipKnown = false;
-        for (std::size_t j = 0; j < ips.size(); j++) {
-            if (ips[j] == sourceIp_) {
-                ipKnown = true;
-                break;
-            }
-        }
-        if (!ipKnown) {
-            ips.push_back(sourceIp_);
-        }
-
-        std::size_t pidx = ports.size();
-        for (std::size_t j = 0; j < ports.size(); j++) {
-            if (ports[j] == destPort_) {
-                pidx = j;
-                break;
-            }
-        }
-        if (pidx == ports.size()) {
-            ports.push_back(destPort_);
-            portHits.push_back(0);
-        }
-        portHits[pidx]++;
-    }
-
     LogEntry toTriggerEntry() const {
         if (timestamp_ < 0) {
             return LogEntry("Jan", 1, 0, 0, 0, sourceIp_, blocked_);
@@ -261,3 +221,5 @@ public:
         return os;
     }
 };
+
+#endif
