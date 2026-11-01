@@ -1,10 +1,9 @@
-#pragma once
+#ifndef ALERT_H
+#define ALERT_H
 
-#include <ostream>
+#include <iostream>
 #include <string>
-#include <vector>
-
-#include "LogEntry.hpp"
+#include "LogEntry.h"
 
 class Alert {
 private:
@@ -13,7 +12,7 @@ private:
     std::string message_;
     LogEntry trigger_;
 
-   void setSeverityByScore(int score) {
+    void setSeverityByScore(int score) {
         if (score >= 8) {
             severity_ = "CRITICAL";
         } else if (score >= 5) {
@@ -24,7 +23,7 @@ private:
     }
 
 public:
-   Alert(const std::string& category, const std::string& message, const LogEntry& trigger, int riskScore = 5)
+    Alert(const std::string& category, const std::string& message, const LogEntry& trigger, int riskScore = 5)
         : category_(category), severity_("MEDIUM"), message_(message), trigger_(trigger) {
         setSeverityByScore(riskScore);
     }
@@ -66,18 +65,6 @@ public:
         return trigger_.matchesIpString(targetIp);
     }
 
-    void updateAlertStats(int& medium, int& high, int& critical,
-                          std::vector<std::string>& ips, std::vector<int>& counts) const {
-        if (severity_ == "CRITICAL") {
-            critical++;
-        } else if (severity_ == "HIGH") {
-            high++;
-        } else {
-            medium++;
-        }
-        trigger_.countIp(ips, counts);
-    }
-
     Alert promoteToCorrelatedAlert(const Alert& secondStage) const {
         std::string combinedMsg = "Multi-stage attack: Stage 1 (" + category_ + ": " + message_
                                 + ") -> Stage 2 (" + secondStage.category_ + ": " + secondStage.message_ + ")";
@@ -89,3 +76,5 @@ public:
         return os;
     }
 };
+
+#endif
