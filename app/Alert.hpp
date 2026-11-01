@@ -1,6 +1,9 @@
 #pragma once
-#include <iostream>
+
+#include <ostream>
 #include <string>
+#include <vector>
+
 #include "LogEntry.hpp"
 
 class Alert {
@@ -61,6 +64,18 @@ public:
         return trigger_.matchesIpString(targetIp);
     }
 
+    void updateAlertStats(int& medium, int& high, int& critical,
+                          std::vector<std::string>& ips, std::vector<int>& counts) const {
+        if (severity_ == "CRITICAL") {
+            critical++;
+        } else if (severity_ == "HIGH") {
+            high++;
+        } else {
+            medium++;
+        }
+        trigger_.countIp(ips, counts);
+    }
+
     Alert promoteToCorrelatedAlert(const Alert& secondStage) const {
         std::string combinedMsg = "Multi-stage attack: Stage 1 (" + category_ + ": " + message_
                                 + ") -> Stage 2 (" + secondStage.category_ + ": " + secondStage.message_ + ")";
@@ -72,5 +87,3 @@ public:
         return os;
     }
 };
-
-
