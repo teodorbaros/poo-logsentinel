@@ -1,10 +1,12 @@
-#ifndef LOG_ENTRY_HPP
-#define LOG_ENTRY_HPP
+#pragma once
 
-#include <iostream>
+#include <ostream>
 #include <string>
 
 class LogEntry {
+    friend class LogSource;
+    friend class Analyzer;
+
 private:
     int timestamp_;
     std::string ip_;
@@ -150,7 +152,11 @@ public:
     }
 
     void printAlertFormat(std::ostream& os, const std::string& category, const std::string& severity, const std::string& message) const {
-        os << "[" << category << ":" << severity << "] IP " << ip_ << " - " << message << " (at " << formatTime() << ")";
+        os << "[" << category << ":" << severity << "] IP " << ip_ << " - " << message << "\n"
+           << "      Time      : " << formatTime() << "\n"
+           << "      Source IP : " << ip_ << "\n"
+           << "      Category  : " << category << "\n"
+           << "      Severity  : " << severity;
     }
 
     friend std::ostream& operator<<(std::ostream& os, const LogEntry& entry) {
@@ -159,4 +165,3 @@ public:
     }
 };
 
-#endif // LOG_ENTRY_HPP
