@@ -1,8 +1,9 @@
 #pragma once
 
-#include <iostream>
+#include <ostream>
 #include <string>
 #include <vector>
+
 #include "LogEntry.hpp"
 
 class FirewallEntry {
@@ -187,6 +188,47 @@ public:
         }
     }
 
+    void updateFirewallStats(std::vector<std::string>& ips, std::vector<int>& ports, std::vector<int>& portHits,
+                             int& blockedCount, int& criticalPackets, int& tcp, int& udp, int& icmp) const {
+        if (blocked_) {
+            blockedCount++;
+        }
+        if (targetsCriticalService()) {
+            criticalPackets++;
+        }
+        if (protocol_ == "TCP") {
+            tcp++;
+        } else if (protocol_ == "UDP") {
+            udp++;
+        } else if (protocol_ == "ICMP") {
+            icmp++;
+        }
+
+        bool ipKnown = false;
+        for (std::size_t j = 0; j < ips.size(); j++) {
+            if (ips[j] == sourceIp_) {
+                ipKnown = true;
+                break;
+            }
+        }
+        if (!ipKnown) {
+            ips.push_back(sourceIp_);
+        }
+
+        std::size_t pidx = ports.size();
+        for (std::size_t j = 0; j < ports.size(); j++) {
+            if (ports[j] == destPort_) {
+                pidx = j;
+                break;
+            }
+        }
+        if (pidx == ports.size()) {
+            ports.push_back(destPort_);
+            portHits.push_back(0);
+        }
+        portHits[pidx]++;
+    }
+
     LogEntry toTriggerEntry() const {
         if (timestamp_ < 0) {
             return LogEntry("Jan", 1, 0, 0, 0, sourceIp_, blocked_);
@@ -202,7 +244,6 @@ public:
 
         int days = timestamp_ / 86400;
         int remainder = timestamp_ % 86400;
-
         int month = 11;
         while (month > 0 && cumulativeDays[month] > days) {
             month--;
@@ -221,4 +262,3 @@ public:
         return os;
     }
 };
-
