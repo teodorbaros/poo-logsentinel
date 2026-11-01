@@ -1,5 +1,5 @@
 #pragma once
-#include <iomanip>
+
 #include <ostream>
 #include <string>
 #include <vector>
@@ -9,7 +9,6 @@
 #include "IpTracker.hpp"
 #include "LogSource.hpp"
 #include "PortScanTracker.hpp"
-#include "Utils.hpp"
 
 class Analyzer {
 private:
@@ -72,6 +71,19 @@ private:
             }
             counts[idx]++;
         }
+    }
+
+    static std::string makeBar(double percent) {
+        int filled = static_cast<int>(percent / 5.0);
+        std::string bar = "[";
+        for (int i = 0; i < 20; i++) {
+            if (i < filled) {
+                bar = bar + "#";
+            } else {
+                bar = bar + "-";
+            }
+        }
+        return bar + "]";
     }
 
 public:
@@ -314,13 +326,9 @@ public:
         }
 
         int events = static_cast<int>(sshSource_.getEntryCount() + fwSource_.getEntryCount());
-        double mediumPct = 100.0 * medium / total;
-        double highPct = 100.0 * high / total;
-        double criticalPct = 100.0 * critical / total;
-
-        std::ios::fmtflags oldFlags = os.flags();
-        std::streamsize oldPrecision = os.precision();
-        os << std::fixed << std::setprecision(1);
+        int mediumPct = static_cast<int>(100.0 * medium / total + 0.5);
+        int highPct = static_cast<int>(100.0 * high / total + 0.5);
+        int criticalPct = static_cast<int>(100.0 * critical / total + 0.5);
 
         os << "  Total alerts        : " << total << "\n";
         os << "  By type             : SSH=" << sshAlerts_.size() << ", FW=" << fwAlerts_.size()
@@ -331,12 +339,9 @@ public:
         os << "  Distinct IPs alerted: " << ips.size() << "\n";
         os << "  Most active attacker: " << ips[top] << " (" << counts[top] << " alerts)\n";
         if (events > 0) {
-            os << "  Detection rate      : " << (100.0 * total / events) << " alerts per 100 events ("
+            os << "  Detection rate      : " << static_cast<int>(100.0 * total / events + 0.5) << " alerts per 100 events ("
                << total << " alerts / " << events << " events)\n";
         }
-
-        os.flags(oldFlags);
-        os.precision(oldPrecision);
     }
 
     friend std::ostream& operator<<(std::ostream& os, const Analyzer& analyzer) {
@@ -344,4 +349,3 @@ public:
         return os;
     }
 };
-
