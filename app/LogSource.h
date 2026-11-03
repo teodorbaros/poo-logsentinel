@@ -24,6 +24,27 @@ private:
         }
     }
 
+    bool readNextEntry(std::istream& in) {
+        std::string month;
+        std::string ip;
+        int day = 0;
+        int hour = 0;
+        int minute = 0;
+        int second = 0;
+        bool failed = false;
+
+        if (!(in >> month >> day >> hour >> minute >> second >> ip >> failed)) {
+            return false;
+        }
+        LogEntry entry(month, day, hour, minute, second, ip, failed);
+        if (entry.isValid()) {
+            entries_.push_back(entry);
+        } else {
+            ignoredLines_++;
+        }
+        return true;
+    }
+
     std::string makeBar(int count, int total) const {
         if (total <= 0 || sourceName_.empty()) {
             return "[          ]";
@@ -53,24 +74,18 @@ public:
 
     void ingestFromStream(std::istream& in, int lineCount) {
         for (int i = 0; i < lineCount; i++) {
-            std::string month;
-            std::string ip;
-            int day = 0;
-            int hour = 0;
-            int minute = 0;
-            int second = 0;
-            bool failed = false;
-
-            if (in >> month >> day >> hour >> minute >> second >> ip >> failed) {
-                LogEntry entry(month, day, hour, minute, second, ip, failed);
-                if (entry.isValid()) {
-                    entries_.push_back(entry);
-                } else {
-                    ignoredLines_++;
-                }
-            }
+            readNextEntry(in);
         }
         sortChronologically();
+    }
+
+    int ingestUntilEof(std::istream& in) {
+        int recordsRead = 0;
+        while (readNextEntry(in)) {
+            recordsRead++;
+        }
+        sortChronologically();
+        return recordsRead;
     }
 
     int getEntryCount() const {
