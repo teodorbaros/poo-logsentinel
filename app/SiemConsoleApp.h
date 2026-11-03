@@ -1,6 +1,7 @@
 #ifndef SIEM_CONSOLE_APP_H
 #define SIEM_CONSOLE_APP_H
 
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -48,6 +49,7 @@ private:
         std::cout << "|  [5] Investigate specific IP address activity (Threat Intel)       |\n";
         std::cout << "|  [6] Archive & escalate top priority alert to Tier-2 SOC           |\n";
         std::cout << "|  [7] Display SIEM telemetry, audit log & archived incidents        |\n";
+        std::cout << "|  [8] Load SSH / Firewall logs from a file path (ssh|fw <path>)       |\n";
         std::cout << "|  [0] Exit application and generate session summary                 |\n";
         std::cout << "+--------------------------------------------------------------------+\n";
         std::cout << "Select option >> ";
@@ -73,6 +75,48 @@ private:
         fwSource_.ingestFromStream(in, packetCount);
         analyzer_.syncSources(sshSource_, fwSource_);
         std::cout << "[OK] Updated " << fwSource_ << "\n";
+    }
+
+    void handleFileIngestion(std::istream& in) {
+        std::string sourceType;
+        std::string path;
+        if (!(in >> sourceType >> path)) {
+            return;
+        }
+        if (sourceType != "ssh" && sourceType != "fw") {
+            std::cout << "\n[ERROR] Unknown source type '" << sourceType << "' (expected: ssh or fw)\n";
+            return;
+        }
+
+        std::ifstream file(path);
+        if (!file.is_open()) {
+            std::cout << "\n[ERROR] Cannot open log file: " << path << "\n";
+            return;
+        }
+
+        std::cout << "\n[INGEST] Loading " << sourceType << " records from file " << path << "...\n";
+        int recordsRead = 0;
+        if (sourceType == "ssh") {
+            recordsRead = sshSource_.ingestUntilEof(file);
+        } else {
+            recordsRead = fwSource_.ingestUntilEof(file);
+        }
+
+        if (!file.eof()) {
+            std::cout << "[WARN] Reading stopped early: malformed line in " << path << "\n";
+        }
+        if (recordsRead == 0) {
+            std::cout << "[WARN] No readable records found in " << path << " (empty file or wrong format).\n";
+            return;
+        }
+
+        analyzer_.syncSources(sshSource_, fwSource_);
+        std::cout << "[OK] Read " << recordsRead << " records. Updated ";
+        if (sourceType == "ssh") {
+            std::cout << sshSource_ << "\n";
+        } else {
+            std::cout << fwSource_ << "\n";
+        }
     }
 
     void handlePolicyUpdate(std::istream& in) {
@@ -230,6 +274,8 @@ public:
                 handleAlertArchival();
             } else if (option == 7) {
                 handleTelemetryAndAudit();
+            } else if (option == 8) {
+                handleFileIngestion(in);
             } else {
                 std::cout << "\n[ERROR] Unknown command code: " << option << "\n";
             }
