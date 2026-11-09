@@ -1,79 +1,89 @@
 #ifndef ALERT_H
 #define ALERT_H
 
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include "LogEntry.h"
 
+// O alerta: ce s-a intamplat (tipul + detaliile), cat de grav e si evenimentul care a declansat-o.
+// Clasa cu constructor de copiere, operator= si destructor (cerinta Temei 1):
+//   - copierea e folosita la arhivare (pastram o copie a alertei originale)
+//   - operator= e folosit cand inlocuim alerta cu versiunea ei escaladata
 class Alert {
 private:
-    std::string category_;
-    std::string severity_;
-    std::string message_;
-    LogEntry trigger_;
+    static constexpr int kCriticalScore = 8;
+    static constexpr int kHighScore = 5;
+    static constexpr int kSeverityColumn = 9;
+    static constexpr int kIpColumn = 16;
 
-    void setSeverityByScore(int score) {
-        if (score >= 8) {
-            severity_ = "CRITICAL";
-        } else if (score >= 5) {
-            severity_ = "HIGH";
-        } else {
-            severity_ = "MEDIUM";
+    std::string kind_;       // "brute-force SSH", "port scan", ...
+    std::string severity_;   // MEDIUM / HIGH / CRITICAL
+    std::string details_;    // "6 parole gresite din 6 incercari in 23 s"
+    LogEntry trigger_;       // momentul si IP-ul
+
+    // scorul de risc -> severitate (scorul nu se pastreaza, doar eticheta)
+    static std::string severityFor(int riskScore) {
+        if (riskScore >= kCriticalScore) {
+            return "CRITICAL";
         }
+        if (riskScore >= kHighScore) {
+            return "HIGH";
+        }
+        return "MEDIUM";
     }
 
 public:
-    Alert(const std::string& category, const std::string& message, const LogEntry& trigger, int riskScore = 5)
-        : category_(category), severity_("MEDIUM"), message_(message), trigger_(trigger) {
-        setSeverityByScore(riskScore);
-    }
+    // scoruri fixe pentru alertele care nu vin dintr-un contor
+    static constexpr int kCorrelationScore = 10;
+    static constexpr int kEscalationScore = 9;
+    static constexpr int kBlacklistScore = 7;
+
+    Alert(const std::string& kind, const std::string& details, const LogEntry& trigger, int riskScore)
+        : kind_(kind), severity_(severityFor(riskScore)), details_(details), trigger_(trigger) {}
 
     Alert(const Alert& other)
-        : category_(other.category_), severity_(other.severity_), message_(other.message_), trigger_(other.trigger_) {}
+        : kind_(other.kind_), severity_(other.severity_), details_(other.details_), trigger_(other.trigger_) {}
 
     Alert& operator=(const Alert& other) {
         if (this != &other) {
-            category_ = other.category_;
+            kind_ = other.kind_;
             severity_ = other.severity_;
-            message_ = other.message_;
+            details_ = other.details_;
             trigger_ = other.trigger_;
         }
         return *this;
     }
 
-    ~Alert() {
-        if (!message_.empty()) {
-            message_.clear();
-        }
-        if (!category_.empty()) {
-            category_.clear();
-        }
-        if (!severity_.empty()) {
-            severity_.clear();
-        }
-    }
+    ~Alert() = default;   // membrii (string, LogEntry) se elibereaza singuri
 
-    bool isHighOrCritical() const {
-        return severity_ == "HIGH" || severity_ == "CRITICAL";
-    }
+    bool hasSeverity(const std::string& severity) const { return severity_ == severity; }
+    bool isHighOrCritical() const { return severity_ == "HIGH" || severity_ == "CRITICAL"; }
+    bool involvesSameIpAs(const Alert& other) const { return trigger_.hasSameIp(other.trigger_); }
+    bool matchesIpString(const std::string& targetIp) const { return trigger_.matchesIpString(targetIp); }
+    const std::string& getIpString() const { return trigger_.getIpString(); }
 
-    bool involvesSameIpAs(const Alert& other) const {
-        return trigger_.hasSameIp(other.trigger_);
-    }
+    // "CRITICAL, atac in doua etape" - motivul trecut in blacklist dupa scan
+    std::string reason() const { return severity_ + ", " + kind_; }
 
-    bool matchesIpString(const std::string& targetIp) const {
-        return trigger_.matchesIpString(targetIp);
-    }
-
+    // Port scan + brute-force de la acelasi IP -> un singur atac in doua etape
     Alert promoteToCorrelatedAlert(const Alert& secondStage) const {
-        std::string combinedMsg = "Multi-stage attack: Stage 1 (" + category_ + ": " + message_
-                                + ") -> Stage 2 (" + secondStage.category_ + ": " + secondStage.message_ + ")";
-        return Alert("SIEM-CORRELATION", combinedMsg, secondStage.trigger_, 10);
+        const std::string details = kind_ + " (" + details_ + "), apoi " + secondStage.kind_ + " (" +
+                                    secondStage.details_ + ")";
+        return {"atac in doua etape", details, secondStage.trigger_, kCorrelationScore};
     }
 
+    // Aceeasi alerta, predata echipei Tier-2 (acelasi IP si moment, nu alt eveniment)
+    Alert escalatedToTier2() const {
+        return {"predat echipei Tier-2", kind_ + ": " + details_, trigger_, kEscalationScore};
+    }
+
+    //   CRITICAL 192.168.1.50     atac in doua etape, Oct 12 14:03:01
+    //            port scan (5 porturi ...), apoi brute-force SSH (5 parole ...)
     friend std::ostream& operator<<(std::ostream& os, const Alert& alert) {
-        alert.trigger_.printAlertFormat(os, alert.category_, alert.severity_, alert.message_);
-        return os;
+        return os << "  " << std::left << std::setw(kSeverityColumn) << alert.severity_ << std::setw(kIpColumn)
+                  << alert.getIpString() << std::right << alert.kind_ << ", " << alert.trigger_.getTimestamp() << "\n"
+                  << "  " << std::setw(kSeverityColumn) << "" << alert.details_;
     }
 };
 

@@ -3,9 +3,11 @@
 
 #include <iostream>
 #include <sstream>
-#include "LogEntry.h"
 #include "Alert.h"
+#include "DetectionPolicy.h"
+#include "LogEntry.h"
 
+// Numara incercarile SSH ale unui IP intr-o fereastra de timp (pentru brute-force).
 class IpTracker {
 private:
     LogEntry firstAttempt_;
@@ -13,17 +15,15 @@ private:
     int totalAttempts_;
 
 public:
-    explicit IpTracker(const LogEntry& firstAttempt)
-        : firstAttempt_(firstAttempt), failedAttempts_(0), totalAttempts_(0) {
+    explicit IpTracker(const LogEntry& firstAttempt) : firstAttempt_(firstAttempt), failedAttempts_(0), totalAttempts_(0) {
         firstAttempt.updateCounters(totalAttempts_, failedAttempts_);
     }
 
-    bool tracksSameIp(const LogEntry& entry) const {
-        return firstAttempt_.hasSameIp(entry);
-    }
+    bool tracksSameIp(const LogEntry& entry) const { return firstAttempt_.hasSameIp(entry); }
 
-    void recordAttempt(const LogEntry& entry, int windowSeconds) {
-        if (entry.hasWindowExpired(firstAttempt_, windowSeconds)) {
+    // daca a iesit din fereastra, o ia de la capat cu incercarea curenta
+    void recordAttempt(const LogEntry& entry, const DetectionPolicy& policy) {
+        if (policy.isOutsideWindow(entry.secondsSince(firstAttempt_))) {
             firstAttempt_ = entry;
             totalAttempts_ = 0;
             failedAttempts_ = 0;
@@ -31,24 +31,23 @@ public:
         entry.updateCounters(totalAttempts_, failedAttempts_);
     }
 
-    bool isAttack(int threshold, double minRatio) const {
-        if (totalAttempts_ <= 0) {
-            return false;
-        }
-        double currentRatio = (1.0 * failedAttempts_) / totalAttempts_;
-        return failedAttempts_ >= threshold && currentRatio >= minRatio;
-    }
+    bool isAttack(const DetectionPolicy& policy) const { return policy.isBruteForce(failedAttempts_, totalAttempts_); }
+
+    // merita aratat ca "de urmarit" doar daca a gresit macar o parola
+    bool hasFailures() const { return failedAttempts_ > 0; }
 
     Alert createAlert(const LogEntry& lastAttempt) const {
-        int duration = lastAttempt.secondsSince(firstAttempt_);
         std::ostringstream msg;
-        msg << failedAttempts_ << " SSH failures out of " << totalAttempts_ << " attempts in " << duration << "s";
-        return Alert("SSH-BRUTEFORCE", msg.str(), lastAttempt, failedAttempts_);
+        msg << failedAttempts_ << " parole gresite din " << totalAttempts_ << " in "
+            << lastAttempt.secondsSince(firstAttempt_) << " s";
+        return {"brute-force SSH", msg.str(), lastAttempt, failedAttempts_};
     }
 
     friend std::ostream& operator<<(std::ostream& os, const IpTracker& tracker) {
-        os << tracker.firstAttempt_ << " -> " << tracker.failedAttempts_ << "/" << tracker.totalAttempts_ << " SSH failures";
-        return os;
+        os << tracker.firstAttempt_.getIpString() << ": " << tracker.failedAttempts_
+           << (tracker.failedAttempts_ == 1 ? " parola gresita" : " parole gresite") << " din " << tracker.totalAttempts_
+           << (tracker.totalAttempts_ == 1 ? " incercare" : " incercari");
+        return os << " (de la " << tracker.firstAttempt_.getTimestamp() << ")";
     }
 };
 
