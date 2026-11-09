@@ -2,8 +2,8 @@
 #include "SiemConsoleApp.h"
 
 int main() {
-    SiemConsoleApp app("sshd_stream", "ufw_stream");
+    SiemConsoleApp app(std::cout, "sshd", "ufw");
     app.run(std::cin);
-    std::cout << "\n=== Final SIEM Session State ===\n" << app << "\n";
+    std::cout << app << "\n";
     return 0;
 }
