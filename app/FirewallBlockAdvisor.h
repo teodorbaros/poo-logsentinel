@@ -13,7 +13,10 @@ class FirewallBlockAdvisor {
 private:
     IpRange target_;
 
+#if defined(_WIN32)
+    // numele regulii in Windows Firewall (ufw nu are nevoie de nume, deci functia exista doar pe Windows)
     std::string ruleName() const { return "LogSentinel block " + target_.toText(); }
+#endif
 
 public:
     explicit FirewallBlockAdvisor(const IpRange& target) : target_(target) {}

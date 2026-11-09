@@ -460,10 +460,6 @@ private:
             printUsage("local");
             return;
         }
-        if (!LocalLogCollector::isSupportedPlatform()) {
-            out_ << "Scanarea locala merge deocamdata doar pe Linux si Windows.\n";
-            return;
-        }
         out_ << localCollector_ << "\n";
         const bool ssh = type == "ssh";
         const int added = ssh ? localCollector_.collectSsh(minutes, sshSource_, out_)

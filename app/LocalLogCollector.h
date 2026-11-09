@@ -178,14 +178,6 @@ private:
 public:
     explicit LocalLogCollector(const std::string& tempFile) : tempFile_(tempFile) {}
 
-    static bool isSupportedPlatform() {
-#if defined(_WIN32) || defined(__linux__)
-        return true;
-#else
-        return false;
-#endif
-    }
-
     // intoarce cate evenimente SSH au fost adaugate in `target`
     int collectSsh(int minutes, LogSource& target, std::ostream& out) const {
         std::istringstream exported(runExport(sshExportCommand(minutes), out));
@@ -204,6 +196,9 @@ public:
             out << "Nu am gasit nicio incercare de logare SSH in ultimele " << minutes << " minute.\n"
                 << "Daca te asteptai la evenimente: ruleaza aplicatia cu sudo sau adauga-te in grup cu\n"
                 << "'sudo usermod -aG systemd-journal $USER' (apoi deschide alt terminal).\n";
+#endif
+#if defined(__APPLE__)
+            out << "Pe macOS scanarea locala nu e inca suportata (nu exista journalctl).\n";
 #endif
         }
         return added;
@@ -228,6 +223,9 @@ public:
             out << "Nu am gasit niciun pachet de firewall in ultimele " << minutes << " minute.\n"
                 << "Firewall-ul logheaza doar daca e pornit: 'sudo ufw logging on' sau, pe firewalld,\n"
                 << "'sudo firewall-cmd --set-log-denied=all'.\n";
+#if defined(__APPLE__)
+            out << "Pe macOS scanarea locala nu e inca suportata (nu exista journalctl).\n";
+#endif
         }
         return added;
     }
@@ -238,7 +236,7 @@ public:
 #elif defined(__linux__)
         os << "Surse locale: journalctl (sshd) si log-ul kernel-ului (ufw / firewalld)";
 #else
-        os << "Scanarea locala nu e disponibila pe acest sistem";
+        os << "Surse locale: niciuna pe acest sistem";
 #endif
         return os << " (fisier temporar: " << collector.tempFile_ << ")";
     }
