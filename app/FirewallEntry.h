@@ -1,172 +1,62 @@
 #ifndef FIREWALL_ENTRY_H
 #define FIREWALL_ENTRY_H
 
+#include <algorithm>
+#include <array>
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
+#include "Ipv4Address.h"
 #include "LogEntry.h"
+#include "Timestamp.h"
 
+// Un pachet vazut de firewall: cand, de la ce IP, spre ce port, blocat sau permis.
 class FirewallEntry {
 private:
-    int timestamp_;
-    std::string sourceIp_;
+    static constexpr int kMaxPort = 65535;
+    static constexpr int kIpColumn = 15;
+    static constexpr int kStatusColumn = 8;   // "blocat" / "permis" + spatiu
+    // FTP, SSH, Telnet, SMB, MSSQL, MySQL, RDP
+    static constexpr std::array<int, 7> kCriticalPorts = {21, 22, 23, 445, 1433, 3306, 3389};
+
+    Timestamp timestamp_;
+    Ipv4Address sourceIp_;
     int destPort_;
     std::string protocol_;
     bool blocked_;
 
-    bool hasValidIpv4Format() const {
-        if (sourceIp_.empty() || sourceIp_.size() > 15) {
-            return false;
-        }
-
-        int dots = 0;
-        int currentOctet = 0;
-        int digitsInOctet = 0;
-
-        for (std::size_t i = 0; i < sourceIp_.size(); i++) {
-            char c = sourceIp_[i];
-            if (c == '.') {
-                if (digitsInOctet == 0 || currentOctet > 255) {
-                    return false;
-                }
-                dots++;
-                currentOctet = 0;
-                digitsInOctet = 0;
-            } else if (c >= '0' && c <= '9') {
-                currentOctet = currentOctet * 10 + (c - '0');
-                digitsInOctet++;
-                if (digitsInOctet > 3 || currentOctet > 255) {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-
-        return (dots == 3 && digitsInOctet > 0 && currentOctet <= 255);
-    }
-
-    bool hasValidPortAndProtocol() const {
-        bool validPort = (destPort_ >= 1 && destPort_ <= 65535);
-        bool validProto = (protocol_ == "TCP" || protocol_ == "UDP" || protocol_ == "ICMP");
-        return validPort && validProto;
-    }
-
-    void setTimestamp(const std::string& month, int day, int hour, int minute, int second) {
-        if (day < 1 || day > 31 || hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
-            timestamp_ = -1;
-            return;
-        }
-
-        const std::string months[12] = {
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-        };
-        const int daysInMonth[12] = {
-            31, 28, 31, 30, 31, 30,
-            31, 31, 30, 31, 30, 31
-        };
-        const int cumulativeDays[12] = {
-            0, 31, 59, 90, 120, 151,
-            181, 212, 243, 273, 304, 334
-        };
-
-        timestamp_ = -1;
-        for (int i = 0; i < 12; i++) {
-            if (month == months[i]) {
-                if (day > daysInMonth[i]) {
-                    timestamp_ = -1;
-                    return;
-                }
-                int days = cumulativeDays[i] + day - 1;
-                timestamp_ = days * 86400 + hour * 3600 + minute * 60 + second;
-                return;
-            }
-        }
-    }
-
-    std::string formatTime() const {
-        if (timestamp_ < 0) {
-            return "?";
-        }
-
-        const std::string months[12] = {
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-        };
-        const int cumulativeDays[12] = {
-            0, 31, 59, 90, 120, 151,
-            181, 212, 243, 273, 304, 334
-        };
-
-        int days = timestamp_ / 86400;
-        int remainder = timestamp_ % 86400;
-
-        int month = 11;
-        while (month > 0 && cumulativeDays[month] > days) {
-            month--;
-        }
-
-        int day = (days - cumulativeDays[month]) + 1;
-        int hour = remainder / 3600;
-        int minute = (remainder % 3600) / 60;
-        int second = remainder % 60;
-
-        std::string dayStr = (day < 10 ? "0" : "") + std::to_string(day);
-        std::string hourStr = (hour < 10 ? "0" : "") + std::to_string(hour);
-        std::string minStr = (minute < 10 ? "0" : "") + std::to_string(minute);
-        std::string secStr = (second < 10 ? "0" : "") + std::to_string(second);
-
-        return months[month] + " " + dayStr + " " + hourStr + ":" + minStr + ":" + secStr;
-    }
-
 public:
-    FirewallEntry(const std::string& month, int day, int hour, int minute, int second,
-                  const std::string& sourceIp, int destPort, const std::string& protocol, bool blocked)
-        : timestamp_(-1), sourceIp_(sourceIp), destPort_(destPort), protocol_(protocol), blocked_(blocked) {
-        if (hasValidIpv4Format() && hasValidPortAndProtocol()) {
-            setTimestamp(month, day, hour, minute, second);
-        }
-    }
+    FirewallEntry(const std::string& month, int day, int hour, int minute, int second, const std::string& sourceIp,
+                  int destPort, const std::string& protocol, bool blocked)
+        : timestamp_(month, day, hour, minute, second),
+          sourceIp_(sourceIp),
+          destPort_(destPort),
+          protocol_(protocol),
+          blocked_(blocked) {}
 
     bool isValid() const {
-        return timestamp_ >= 0 && !sourceIp_.empty();
+        const bool validProtocol = protocol_ == "TCP" || protocol_ == "UDP" || protocol_ == "ICMP";
+        return timestamp_.isValid() && sourceIp_.isValid() && destPort_ >= 1 && destPort_ <= kMaxPort && validProtocol;
     }
 
-    bool hasSameSourceIp(const FirewallEntry& other) const {
-        return sourceIp_ == other.sourceIp_;
-    }
+    bool isBlocked() const { return blocked_; }
+    int getDestPort() const { return destPort_; }
+    bool hasSameSourceIp(const FirewallEntry& other) const { return sourceIp_.sameAs(other.sourceIp_); }
+    bool matchesIpString(const std::string& targetIp) const { return sourceIp_.toString() == targetIp; }
+    const std::string& getIpString() const { return sourceIp_.toString(); }
+    const Ipv4Address& getAddress() const { return sourceIp_; }
+    const Timestamp& getTimestamp() const { return timestamp_; }
 
-    bool matchesIpString(const std::string& targetIp) const {
-        return sourceIp_ == targetIp;
-    }
+    int secondsSince(const FirewallEntry& start) const { return timestamp_.secondsSince(start.timestamp_); }
 
-    bool matchesLogEntryIp(const LogEntry& sshEntry) const {
-        return sshEntry.matchesIpString(sourceIp_);
-    }
-
-    bool isBefore(const FirewallEntry& other) const {
-        return timestamp_ < other.timestamp_;
-    }
-
-    int secondsSince(const FirewallEntry& start) const {
-        return timestamp_ - start.timestamp_;
-    }
-
-    bool hasWindowExpired(const FirewallEntry& start, int windowSeconds) const {
-        return (timestamp_ - start.timestamp_) > windowSeconds;
-    }
+    bool operator<(const FirewallEntry& other) const { return timestamp_.isBefore(other.timestamp_); }
 
     bool targetsCriticalService() const {
-        const int criticalPorts[7] = {21, 22, 23, 445, 1433, 3306, 3389};
-        for (int i = 0; i < 7; i++) {
-            if (destPort_ == criticalPorts[i]) {
-                return true;
-            }
-        }
-        return false;
+        return std::find(kCriticalPorts.begin(), kCriticalPorts.end(), destPort_) != kCriticalPorts.end();
     }
 
+    // Adauga pachetul la statisticile unui port scan (doar pachetele blocate conteaza)
     void updateScanMetrics(std::vector<int>& distinctPorts, int& blockedCount, int& criticalHits) const {
         if (!blocked_) {
             return;
@@ -175,49 +65,22 @@ public:
         if (targetsCriticalService()) {
             criticalHits++;
         }
-
-        bool alreadyRecorded = false;
-        for (std::size_t i = 0; i < distinctPorts.size(); i++) {
-            if (distinctPorts[i] == destPort_) {
-                alreadyRecorded = true;
-                break;
-            }
-        }
-        if (!alreadyRecorded) {
+        if (std::find(distinctPorts.begin(), distinctPorts.end(), destPort_) == distinctPorts.end()) {
             distinctPorts.push_back(destPort_);
         }
     }
 
-    LogEntry toTriggerEntry() const {
-        if (timestamp_ < 0) {
-            return LogEntry("Jan", 1, 0, 0, 0, sourceIp_, blocked_);
-        }
-        const std::string months[12] = {
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-        };
-        const int cumulativeDays[12] = {
-            0, 31, 59, 90, 120, 151,
-            181, 212, 243, 273, 304, 334
-        };
+    // Alertele au nevoie de un LogEntry ca "declansator" (moment + IP)
+    LogEntry toTriggerEntry() const { return {timestamp_, sourceIp_, blocked_}; }
 
-        int days = timestamp_ / 86400;
-        int remainder = timestamp_ % 86400;
-        int month = 11;
-        while (month > 0 && cumulativeDays[month] > days) {
-            month--;
-        }
-        int day = (days - cumulativeDays[month]) + 1;
-        int hour = remainder / 3600;
-        int minute = (remainder % 3600) / 60;
-        int second = remainder % 60;
-
-        return LogEntry(months[month], day, hour, minute, second, sourceIp_, blocked_);
-    }
-
+    // "Oct 12 14:01:05  203.0.113.77     blocat    TCP port 22 (serviciu critic)"
     friend std::ostream& operator<<(std::ostream& os, const FirewallEntry& fw) {
-        os << "[FW  " << fw.formatTime() << "] " << (fw.blocked_ ? "BLOCK" : "ALLOW")
-           << " " << fw.protocol_ << " from " << fw.sourceIp_ << " -> port " << fw.destPort_;
+        os << fw.timestamp_ << "  " << std::left << std::setw(kIpColumn) << fw.sourceIp_.toString() << "  "
+           << std::setw(kStatusColumn) << (fw.blocked_ ? "blocat" : "permis") << std::right << "  " << fw.protocol_ << " port "
+           << fw.destPort_;
+        if (fw.targetsCriticalService()) {
+            os << " (serviciu critic)";
+        }
         return os;
     }
 };

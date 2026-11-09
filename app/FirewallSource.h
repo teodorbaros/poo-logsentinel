@@ -1,130 +1,108 @@
 #ifndef FIREWALL_SOURCE_H
 #define FIREWALL_SOURCE_H
 
+#include <algorithm>
 #include <iostream>
+#include <set>
+#include <sstream>
 #include <string>
 #include <vector>
 #include "FirewallEntry.h"
 
+// Toate pachetele de firewall incarcate, in ordine cronologica.
 class FirewallSource {
 private:
     std::string sourceName_;
     std::vector<FirewallEntry> entries_;
     int ignoredLines_;
 
-    void sortChronologically() {
-        for (std::size_t i = 0; i < entries_.size(); i++) {
-            for (std::size_t j = i + 1; j < entries_.size(); j++) {
-                if (entries_[j].isBefore(entries_[i])) {
-                    FirewallEntry temp = entries_[i];
-                    entries_[i] = entries_[j];
-                    entries_[j] = temp;
-                }
-            }
-        }
-    }
-
-    bool readNextEntry(std::istream& in) {
+    // Citeste o linie "Luna Zi Ora Min Sec IP port protocol blocked"; o pastreaza doar daca e valida.
+    bool readEntry(std::istream& in) {
         std::string month;
         std::string ip;
-        std::string proto;
+        std::string protocol;
         int day = 0;
         int hour = 0;
         int minute = 0;
         int second = 0;
         int port = 0;
         bool blocked = false;
-
-        if (!(in >> month >> day >> hour >> minute >> second >> ip >> port >> proto >> blocked)) {
-            return false;
-        }
-        FirewallEntry entry(month, day, hour, minute, second, ip, port, proto, blocked);
-        if (entry.isValid()) {
-            entries_.push_back(entry);
-        } else {
-            ignoredLines_++;
-        }
-        return true;
-    }
-
-    std::string makeBar(int count, int total) const {
-        if (total <= 0 || sourceName_.empty()) {
-            return "[          ]";
-        }
-        int filled = (count * 10) / total;
-        if (filled < 0) {
-            filled = 0;
-        }
-        if (filled > 10) {
-            filled = 10;
-        }
-        std::string bar = "[";
-        for (int i = 0; i < 10; i++) {
-            if (i < filled) {
-                bar += '#';
-            } else {
-                bar += ' ';
+        if (in >> month >> day >> hour >> minute >> second >> ip >> port >> protocol >> blocked) {
+            const FirewallEntry entry(month, day, hour, minute, second, ip, port, protocol, blocked);
+            if (entry.isValid()) {
+                entries_.push_back(entry);
+                return true;
             }
         }
-        bar += "]";
-        return bar;
+        ignoredLines_++;
+        return false;
     }
 
 public:
-    explicit FirewallSource(const std::string& sourceName)
-        : sourceName_(sourceName), ignoredLines_(0) {}
+    explicit FirewallSource(const std::string& sourceName) : sourceName_(sourceName), ignoredLines_(0) {}
 
-    void ingestFromStream(std::istream& in, int packetCount) {
+    int ingestFromStream(std::istream& in, int packetCount) {
+        int added = 0;
         for (int i = 0; i < packetCount; i++) {
-            readNextEntry(in);
+            added += readEntry(in) ? 1 : 0;
         }
-        sortChronologically();
+        std::stable_sort(entries_.begin(), entries_.end());   // "stable": la aceeasi ora pastreaza ordinea din input
+        return added;
     }
 
     int ingestUntilEof(std::istream& in) {
-        int recordsRead = 0;
-        while (readNextEntry(in)) {
-            recordsRead++;
+        int added = 0;
+        std::string line;
+        while (std::getline(in, line)) {
+            std::istringstream lineStream(line);
+            if (!line.empty() && readEntry(lineStream)) {
+                added++;
+            }
         }
-        sortChronologically();
-        return recordsRead;
+        std::stable_sort(entries_.begin(), entries_.end());   // "stable": la aceeasi ora pastreaza ordinea din input
+        return added;
     }
 
-    int getEntryCount() const {
-        int count = 0;
-        for (std::size_t i = 0; i < entries_.size(); i++) {
-            count++;
-        }
-        return count;
-    }
+    int getEntryCount() const { return static_cast<int>(entries_.size()); }
+    int getRejectedCount() const { return ignoredLines_; }
+    const FirewallEntry& getEntryAt(int index) const { return entries_[static_cast<std::size_t>(index)]; }
 
-    const FirewallEntry& getEntryAt(int index) const {
-        std::size_t idx = 0;
-        for (int i = 0; i < index; i++) {
-            idx++;
+    //   interval: Oct 12 14:01:05 - Oct 12 14:25:40
+    //   8 IP-uri, 15 blocate, 8 permise, 12 porturi diferite (4 pe servicii critice)
+    void printTelemetrySummary(std::ostream& os) const {
+        if (entries_.empty()) {
+            return;
         }
-        return entries_[idx];
+        std::set<std::string> uniqueIps;
+        std::set<int> distinctPorts;
+        int blocked = 0;
+        int critical = 0;
+        for (const FirewallEntry& entry : entries_) {
+            uniqueIps.insert(entry.getIpString());
+            distinctPorts.insert(entry.getDestPort());
+            blocked += entry.isBlocked() ? 1 : 0;
+            critical += entry.targetsCriticalService() ? 1 : 0;
+        }
+        os << "  interval: " << entries_.front().getTimestamp() << " - " << entries_.back().getTimestamp() << "\n"
+           << "  " << uniqueIps.size() << " IP-uri, " << blocked << " blocate, " << static_cast<int>(entries_.size()) - blocked
+           << " permise, " << distinctPorts.size() << " porturi diferite, " << critical << " pachete spre servicii critice\n";
     }
 
     int printPacketsForIp(std::ostream& os, const std::string& targetIp) const {
         int matched = 0;
-        for (std::size_t i = 0; i < entries_.size(); i++) {
-            if (entries_[i].matchesIpString(targetIp)) {
-                os << "  " << entries_[i]
-                   << (entries_[i].targetsCriticalService() ? " [CRITICAL-PORT]" : "") << "\n";
+        for (const FirewallEntry& entry : entries_) {
+            if (entry.matchesIpString(targetIp)) {
+                os << "  " << entry << "\n";
                 matched++;
             }
         }
         return matched;
     }
 
+    // "Firewall (ufw): 23 pachete, 1 linie respinsa"
     friend std::ostream& operator<<(std::ostream& os, const FirewallSource& source) {
-        int validCount = source.getEntryCount();
-        int totalProcessed = validCount + source.ignoredLines_;
-        os << "[FW  Stream: " << source.sourceName_ << "] "
-           << source.makeBar(validCount, totalProcessed) << " "
-           << validCount << " valid packets (" << source.ignoredLines_ << " invalid ignored)";
-        return os;
+        return os << "Firewall (" << source.sourceName_ << "): " << source.entries_.size() << " pachete, "
+                  << source.ignoredLines_ << (source.ignoredLines_ == 1 ? " linie respinsa" : " linii respinse");
     }
 };
 

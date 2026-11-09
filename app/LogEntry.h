@@ -1,146 +1,41 @@
 #ifndef LOG_ENTRY_H
 #define LOG_ENTRY_H
 
+#include <iomanip>
 #include <iostream>
 #include <string>
+#include "Ipv4Address.h"
+#include "Timestamp.h"
 
+// O incercare de autentificare SSH: cand, de la ce IP, reusita sau nu.
 class LogEntry {
 private:
-    int timestamp_;
-    std::string ip_;
+    static constexpr int kIpColumn = 15;   // "255.255.255.255" are 15 caractere
+
+    Timestamp timestamp_;
+    Ipv4Address ip_;
     bool failed_;
 
-    bool hasValidIpv4Format() const {
-        if (ip_.empty() || ip_.size() > 15) {
-            return false;
-        }
-
-        int dots = 0;
-        int currentOctet = 0;
-        int digitsInOctet = 0;
-
-        for (std::size_t i = 0; i < ip_.size(); i++) {
-            char c = ip_[i];
-            if (c == '.') {
-                if (digitsInOctet == 0 || currentOctet > 255) {
-                    return false;
-                }
-                dots++;
-                currentOctet = 0;
-                digitsInOctet = 0;
-            } else if (c >= '0' && c <= '9') {
-                currentOctet = currentOctet * 10 + (c - '0');
-                digitsInOctet++;
-                if (digitsInOctet > 3 || currentOctet > 255) {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-
-        return (dots == 3 && digitsInOctet > 0 && currentOctet <= 255);
-    }
-
-    void setTimestamp(const std::string& month, int day, int hour, int minute, int second) {
-        if (day < 1 || day > 31 || hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
-            timestamp_ = -1;
-            return;
-        }
-
-        const std::string months[12] = {
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-        };
-        const int daysInMonth[12] = {
-            31, 28, 31, 30, 31, 30,
-            31, 31, 30, 31, 30, 31
-        };
-        const int cumulativeDays[12] = {
-            0, 31, 59, 90, 120, 151,
-            181, 212, 243, 273, 304, 334
-        };
-
-        timestamp_ = -1;
-        for (int i = 0; i < 12; i++) {
-            if (month == months[i]) {
-                if (day > daysInMonth[i]) {
-                    timestamp_ = -1;
-                    return;
-                }
-                int days = cumulativeDays[i] + day - 1;
-                timestamp_ = days * 86400 + hour * 3600 + minute * 60 + second;
-                return;
-            }
-        }
-    }
-
-    std::string formatTime() const {
-        if (timestamp_ < 0) {
-            return "?";
-        }
-
-        const std::string months[12] = {
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-        };
-        const int cumulativeDays[12] = {
-            0, 31, 59, 90, 120, 151,
-            181, 212, 243, 273, 304, 334
-        };
-
-        int days = timestamp_ / 86400;
-        int remainder = timestamp_ % 86400;
-
-        int month = 11;
-        while (month > 0 && cumulativeDays[month] > days) {
-            month--;
-        }
-
-        int day = (days - cumulativeDays[month]) + 1;
-        int hour = remainder / 3600;
-        int minute = (remainder % 3600) / 60;
-        int second = remainder % 60;
-
-        std::string dayStr = (day < 10 ? "0" : "") + std::to_string(day);
-        std::string hourStr = (hour < 10 ? "0" : "") + std::to_string(hour);
-        std::string minStr = (minute < 10 ? "0" : "") + std::to_string(minute);
-        std::string secStr = (second < 10 ? "0" : "") + std::to_string(second);
-
-        return months[month] + " " + dayStr + " " + hourStr + ":" + minStr + ":" + secStr;
-    }
-
 public:
+    LogEntry(const Timestamp& timestamp, const Ipv4Address& ip, bool failed)
+        : timestamp_(timestamp), ip_(ip), failed_(failed) {}
+
     LogEntry(const std::string& month, int day, int hour, int minute, int second, const std::string& ip, bool failed)
-        : timestamp_(-1), ip_(ip), failed_(failed) {
-        if (hasValidIpv4Format()) {
-            setTimestamp(month, day, hour, minute, second);
-        }
-    }
+        : LogEntry(Timestamp(month, day, hour, minute, second), Ipv4Address(ip), failed) {}
 
-    bool isValid() const {
-        return timestamp_ >= 0 && !ip_.empty();
-    }
+    bool isValid() const { return timestamp_.isValid() && ip_.isValid(); }
+    bool isFailed() const { return failed_; }
 
-    bool hasSameIp(const LogEntry& other) const {
-        return ip_ == other.ip_;
-    }
+    bool hasSameIp(const LogEntry& other) const { return ip_.sameAs(other.ip_); }
+    bool matchesIpString(const std::string& targetIp) const { return ip_.toString() == targetIp; }
+    const std::string& getIpString() const { return ip_.toString(); }
+    const Ipv4Address& getAddress() const { return ip_; }
+    const Timestamp& getTimestamp() const { return timestamp_; }
 
-    bool matchesIpString(const std::string& targetIp) const {
-        return ip_ == targetIp;
-    }
+    int secondsSince(const LogEntry& start) const { return timestamp_.secondsSince(start.timestamp_); }
 
-    bool isBefore(const LogEntry& other) const {
-        return timestamp_ < other.timestamp_;
-    }
-
-    int secondsSince(const LogEntry& start) const {
-        return timestamp_ - start.timestamp_;
-    }
-
-    bool hasWindowExpired(const LogEntry& start, int windowSeconds) const {
-        return (timestamp_ - start.timestamp_) > windowSeconds;
-    }
+    // pentru std::sort: ordinea cronologica
+    bool operator<(const LogEntry& other) const { return timestamp_.isBefore(other.timestamp_); }
 
     void updateCounters(int& totalAttempts, int& failedAttempts) const {
         totalAttempts++;
@@ -149,13 +44,10 @@ public:
         }
     }
 
-    void printAlertFormat(std::ostream& os, const std::string& category, const std::string& severity, const std::string& message) const {
-        os << "[" << category << ":" << severity << "] IP " << ip_ << " - " << message << " (at " << formatTime() << ")";
-    }
-
+    // "Oct 12 14:02:10  192.168.1.50     parola gresita"
     friend std::ostream& operator<<(std::ostream& os, const LogEntry& entry) {
-        os << "[SSH " << entry.formatTime() << "] " << entry.ip_ << " " << (entry.failed_ ? "FAILED" : "SUCCESS");
-        return os;
+        return os << entry.timestamp_ << "  " << std::left << std::setw(kIpColumn) << entry.ip_.toString() << std::right
+                  << "  " << (entry.failed_ ? "parola gresita" : "logare reusita");
     }
 };
 
