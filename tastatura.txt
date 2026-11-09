@@ -1,3 +1,11 @@
+help
+help show
+help logs
+help liste
+help alerte
+help generator
+help blacklist
+help nimic
 1
 13
 Oct 12 14 02 10 192.168.1.50 1
@@ -27,10 +35,42 @@ Oct 12 14 20 04 203.0.113.77 1433 TCP 1
 Oct 12 14 20 06 203.0.113.77 3306 TCP 1
 Oct 12 14 20 09 203.0.113.77 8080 TCP 1
 Oct 12 14 25 00 203.0.113.77 99999 TCP 1
+show ssh 3
+show fw 3
+show dns
 3
 5 4 60 0.8
+3
+0 4 60 2
+comanda_gresita
+whitelist add 172.16.0.99 laptop administrator
+whitelist list
+4
+da
+toate
+load ssh assets/sample_ssh.log
+load fw assets/sample_fw.log
+blacklist add 203.0.113.5 test escaladare
+blacklist add 203.0.113.17 test escaladare
+blacklist list
+blacklist howto 198.51.100.23
+blacklist escalate
+da
+blacklist export block_rules.sh
+4
+toate
 4
 5
-192.168.1.50
+198.51.100.23
+5
+999.1.1.1
 6
+7
+blacklist remove 192.168.1.50
+blacklist remove 203.0.113.77
+blacklist remove 203.0.113.5
+blacklist remove 203.0.113.17
+blacklist remove 203.0.113.0/24
+blacklist remove 198.51.100.23
+whitelist remove 172.16.0.99
 0
