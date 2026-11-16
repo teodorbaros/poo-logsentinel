@@ -7,7 +7,6 @@
 #include "DetectionPolicy.h"
 #include "LogEntry.h"
 
-// Numara incercarile SSH ale unui IP intr-o fereastra de timp (pentru brute-force).
 class IpTracker {
 private:
     LogEntry firstAttempt_;
@@ -21,7 +20,6 @@ public:
 
     bool tracksSameIp(const LogEntry& entry) const { return firstAttempt_.hasSameIp(entry); }
 
-    // daca a iesit din fereastra, o ia de la capat cu incercarea curenta
     void recordAttempt(const LogEntry& entry, const DetectionPolicy& policy) {
         if (policy.isOutsideWindow(entry.secondsSince(firstAttempt_))) {
             firstAttempt_ = entry;
@@ -32,8 +30,6 @@ public:
     }
 
     bool isAttack(const DetectionPolicy& policy) const { return policy.isBruteForce(failedAttempts_, totalAttempts_); }
-
-    // merita aratat ca "de urmarit" doar daca a gresit macar o parola
     bool hasFailures() const { return failedAttempts_ > 0; }
 
     Alert createAlert(const LogEntry& lastAttempt) const {
