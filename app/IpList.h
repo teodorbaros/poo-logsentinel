@@ -10,19 +10,14 @@
 #include "FirewallBlockAdvisor.h"
 #include "IpRange.h"
 #include "Ipv4Address.h"
-
-// Whitelist sau blacklist: IP-uri/subnet-uri cu motivul pentru care sunt in lista.
-// Lista se citeste dintr-un fisier text la pornire si se salveaza la fiecare modificare:
-//     192.168.1.20 laptopul meu
-//     10.0.0.0/8 reteaua interna
 class IpList {
 private:
-    static constexpr int kRangeColumn = 20;   // "255.255.255.255/32" + spatiu
+    static constexpr int kRangeColumn = 20; 
 
     std::string name_;
     std::string filePath_;
     std::vector<IpRange> ranges_;
-    std::vector<std::string> reasons_;   // reasons_[i] = motivul pentru ranges_[i]
+    std::vector<std::string> reasons_;  
 
     void save(std::ostream& out) const {
         std::ofstream file(filePath_);
@@ -37,8 +32,6 @@ private:
 
 public:
     IpList(const std::string& name, const std::string& filePath) : name_(name), filePath_(filePath) {}
-
-    // false (cu mesaj) daca intrarea e invalida sau exista deja
     bool add(const std::string& entry, const std::string& reason, std::ostream& out) {
         const IpRange range(entry);
         if (!range.isValid()) {
@@ -70,9 +63,6 @@ public:
         out << entry << " nu e in " << name_ << ". Vezi lista cu '" << name_ << " list'.\n";
         return false;
     }
-
-    // Citeste fisierul (daca exista); liniile goale si cele care incep cu '#' sunt ignorate.
-    // Intoarce cate intrari are lista; anunta doar liniile invalide.
     int load(std::ostream& out) {
         std::ifstream file(filePath_);
         if (!file.is_open()) {
@@ -103,8 +93,6 @@ public:
     }
 
     int size() const { return static_cast<int>(ranges_.size()); }
-
-    // IP-ul e acoperit de vreo intrare (IP exact sau subnet)?
     bool contains(const Ipv4Address& ip) const {
         for (const IpRange& range : ranges_) {
             if (range.contains(ip)) {
@@ -113,8 +101,6 @@ public:
         }
         return false;
     }
-
-    // exista deja exact intrarea asta?
     bool containsRange(const IpRange& candidate) const {
         for (const IpRange& range : ranges_) {
             if (range.sameAs(candidate)) {
@@ -123,8 +109,6 @@ public:
         }
         return false;
     }
-
-    // vreo intrare se suprapune cu range-ul? (ca sa nu blocam ceva ce e in whitelist)
     bool overlaps(const IpRange& candidate) const {
         for (const IpRange& range : ranges_) {
             if (range.overlaps(candidate)) {
@@ -133,8 +117,6 @@ public:
         }
         return false;
     }
-
-    // intrarile cu un anumit prefix (32 = IP-uri individuale, 24 = subnet-uri /24)
     std::vector<IpRange> rangesWithPrefix(int prefix) const {
         std::vector<IpRange> result;
         for (const IpRange& range : ranges_) {
@@ -144,8 +126,6 @@ public:
         }
         return result;
     }
-
-    // Scrie un script cu cate o comanda de blocare pe linie, ca utilizatorul sa-l citeasca inainte sa-l ruleze
     bool exportBlockScript(const std::string& path, std::ostream& out) const {
         if (ranges_.empty()) {
             out << name_ << " e goala, nu am ce exporta.\n";
