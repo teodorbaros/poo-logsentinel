@@ -7,8 +7,6 @@
 #include <vector>
 #include "IpList.h"
 #include "IpRange.h"
-
-// Propunerea de a bloca un subnet intreg, cu dovezile care o sustin.
 class SubnetProposal {
 private:
     IpRange range_;
@@ -20,23 +18,14 @@ public:
         : range_(range), evidence_(evidence), evidenceUnit_(evidenceUnit) {}
 
     const IpRange& getRange() const { return range_; }
-
-    // "256 adrese, 3 IP-uri in blacklist" - motivul trecut in blacklist
     std::string evidenceText() const {
         return std::to_string(range_.addressCount()) + " adrese, " + std::to_string(evidence_) + " " + evidenceUnit_ +
                " in blacklist";
     }
-
-    // "45.12.3.0/24 = 256 adrese, 3 IP-uri rele gasite"
     friend std::ostream& operator<<(std::ostream& os, const SubnetProposal& proposal) {
         return os << proposal.range_ << " (" << proposal.evidenceText() << ")";
     }
 };
-
-// Escaladare pe baza de dovezi:
-//   /24 daca are cel putin minBadIps IP-uri din blacklist
-//   /16 daca are cel putin minBadSubnets subnet-uri /24 rele
-// Niciodata mai larg de /16, niciodata ceva ce atinge whitelist-ul sau o retea privata.
 class SubnetEscalator {
 private:
     static constexpr int kSingleIp = 32;
@@ -45,8 +34,6 @@ private:
 
     int minBadIpsPer24_;
     int minBad24sPer16_;
-
-    // Cate elemente din `items` cad in fiecare subnet /prefix.  Cheia = subnetul ca text.
     static std::map<std::string, int> countBySubnet(const std::vector<IpRange>& items, int prefix) {
         std::map<std::string, int> counts;
         for (const IpRange& item : items) {
@@ -65,11 +52,11 @@ public:
         : minBadIpsPer24_(minBadIpsPer24), minBad24sPer16_(minBad24sPer16) {}
 
     std::vector<SubnetProposal> propose(const IpList& blacklist, const IpList& whitelist) const {
-        // Pasul 1: /24 cu destule IP-uri rele
-        std::vector<IpRange> bad24s = blacklist.rangesWithPrefix(kSmallPrefix);   // cele deja blocate conteaza si ele
+
+        std::vector<IpRange> bad24s = blacklist.rangesWithPrefix(kSmallPrefix); 
         std::vector<SubnetProposal> proposals24;
         for (const auto& entry : countBySubnet(blacklist.rangesWithPrefix(kSingleIp), kSmallPrefix)) {
-            const IpRange subnet(entry.first);   // entry.first = subnetul, entry.second = cate IP-uri rele are
+            const IpRange subnet(entry.first);  
             const int count = entry.second;
             if (count < minBadIpsPer24_) {
                 continue;
@@ -82,7 +69,6 @@ public:
             }
         }
 
-        // Pasul 2: /16 cu destule /24 rele; un /16 propus le acopera pe /24-urile din el
         std::vector<SubnetProposal> result;
         for (const auto& entry : countBySubnet(bad24s, kLargePrefix)) {
             const IpRange subnet(entry.first);
