@@ -11,16 +11,6 @@
 #include "LogSource.h"
 #include "Timestamp.h"
 
-// Citeste log-urile REALE ale sistemului si le transforma in formatul aplicatiei.
-// Nu folosim API-uri de sistem (<windows.h> e interzis): sistemul exporta log-ul ca text
-// intr-un fisier temporar (std::system), iar noi citim textul linie cu linie.
-//
-//   Linux SSH : journalctl, procesele sshd          "Nov 06 19:40:01 host sshd[812]: Failed password for root from 1.2.3.4 ..."
-//   Linux FW  : journalctl -k (ufw / firewalld)      "Nov 06 19:40:01 host kernel: [UFW BLOCK] ... SRC=1.2.3.4 ... PROTO=TCP ... DPT=22"
-//   Win   SSH : PowerShell, Event Log Security       scrie direct formatul aplicatiei
-//   Win   FW  : fisierul pfirewall.log               "2026-11-06 19:40:01 DROP TCP 1.2.3.4 10.0.0.2 51122 22 ..."
-//
-// Securitate: in comenzi intra DOAR `minutes` (un int verificat), niciodata text scris de utilizator.
 class LocalLogCollector {
 private:
     enum class LineFormat { JournalSsh, KernelFirewall, WindowsFirewall };
@@ -32,7 +22,6 @@ private:
     std::string sshExportCommand(int minutes) const {
         const std::string since = std::to_string(minutes);
 #if defined(_WIN32)
-        // 4625 = logare esuata, 4624 = reusita; doar logari prin retea (tip 3) sau RDP (tip 10)
         return "powershell -NoProfile -Command \""
                "$ci=[Globalization.CultureInfo]::InvariantCulture;"
                "Get-WinEvent -FilterHashtable @{LogName='Security';Id=4624,4625;"
@@ -51,8 +40,6 @@ private:
         return "journalctl -k --since \"-" + std::to_string(minutes) + "min\" --no-pager -o short 2>/dev/null" +
                " | grep \"DPT=\" > \"" + tempFile_ + "\"";
     }
-
-    // textul de dupa "KEY=" pana la primul spatiu:  ("... SRC=1.2.3.4 DST=...", "SRC=") -> "1.2.3.4"
     static std::string fieldValue(const std::string& line, const std::string& key) {
         const std::size_t start = line.find(key);
         if (start == std::string::npos) {
@@ -61,8 +48,6 @@ private:
         const std::size_t valueStart = start + key.size();
         return line.substr(valueStart, line.find(' ', valueStart) - valueStart);
     }
-
-    // "Nov 06 19:40:01 ..." -> "Nov 06 19 40 01"
     static std::string syslogTime(const std::string& line) {
         std::istringstream fields(line);
         std::string month;
@@ -78,9 +63,6 @@ private:
         }
         return month + " " + day + " " + clock;
     }
-
-    // Linux SSH. Numaram doar "Failed password" si "Accepted": la un user inexistent sshd scrie si
-    // "Invalid user ..." pentru ACEEASI incercare, deci l-am numara de doua ori.
     static std::string convertJournalSsh(const std::string& line) {
         const bool failed = line.find("Failed password") != std::string::npos;
         const bool accepted = line.find("Accepted ") != std::string::npos;
@@ -105,8 +87,6 @@ private:
                              line.find("REJECT") != std::string::npos;
         return syslogTime(line) + " " + ip + " " + port + " " + protocol + (blocked ? " 1" : " 0");
     }
-
-    // Windows pfirewall.log; pastram doar liniile din ultimele `minutes` minute
     static std::string convertWindowsFirewall(const std::string& line, int minutes) {
         std::istringstream fields(line);
         int year = 0;
@@ -122,7 +102,6 @@ private:
         std::string dstIp;
         std::string srcPort;
         std::string dstPort;
-        // "2026-11-06 19:40:01 DROP TCP ..."  ->  numerele, cu separatorii '-' si ':' sariti prin `sep`
         if (line.empty() || line[0] == '#' ||
             !(fields >> year >> sep >> month >> sep >> day >> hour >> sep >> minute >> sep >> second >> action >>
               protocol >> srcIp >> dstIp >> srcPort >> dstPort) ||
@@ -139,8 +118,6 @@ private:
         return monthName + " " + std::to_string(day) + " " + std::to_string(hour) + " " + std::to_string(minute) +
                " " + std::to_string(second) + " " + srcIp + " " + dstPort + " " + protocol + (blocked ? " 1" : " 0");
     }
-
-    // O singura functie pentru toate formatele: citeste, converteste, pastreaza liniile recunoscute
     static std::string convertAll(std::istream& in, LineFormat format, int minutes) {
         std::string result;
         std::string line;
@@ -159,8 +136,6 @@ private:
         }
         return result;
     }
-
-    // ruleaza comanda de export si intoarce continutul fisierului temporar (apoi il sterge)
     std::string runExport(const std::string& command, std::ostream& out) const {
         out << "Citesc log-urile sistemului...\n";
         if (std::system(command.c_str()) == -1) {
@@ -178,11 +153,10 @@ private:
 public:
     explicit LocalLogCollector(const std::string& tempFile) : tempFile_(tempFile) {}
 
-    // intoarce cate evenimente SSH au fost adaugate in `target`
     int collectSsh(int minutes, LogSource& target, std::ostream& out) const {
         std::istringstream exported(runExport(sshExportCommand(minutes), out));
 #if defined(_WIN32)
-        std::istringstream converted(exported.str());   // PowerShell a scris deja formatul aplicatiei
+        std::istringstream converted(exported.str()); 
 #else
         std::istringstream converted(convertAll(exported, LineFormat::JournalSsh, minutes));
 #endif
@@ -206,7 +180,6 @@ public:
 
     int collectFirewall(int minutes, FirewallSource& target, std::ostream& out) const {
 #if defined(_WIN32)
-        // logarea e OPRITA implicit: Windows Defender Firewall -> Advanced settings -> Properties -> Logging
         std::ifstream log("C:\\Windows\\System32\\LogFiles\\Firewall\\pfirewall.log");
         if (!log.is_open()) {
             out << "Eroare: nu pot deschide pfirewall.log. Porneste terminalul ca Administrator si activeaza\n"
