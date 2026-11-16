@@ -6,11 +6,9 @@
 #include <string>
 #include "Ipv4Address.h"
 #include "Timestamp.h"
-
-// O incercare de autentificare SSH: cand, de la ce IP, reusita sau nu.
 class LogEntry {
 private:
-    static constexpr int kIpColumn = 15;   // "255.255.255.255" are 15 caractere
+    static constexpr int kIpColumn = 15;  
 
     Timestamp timestamp_;
     Ipv4Address ip_;
@@ -33,8 +31,6 @@ public:
     const Timestamp& getTimestamp() const { return timestamp_; }
 
     int secondsSince(const LogEntry& start) const { return timestamp_.secondsSince(start.timestamp_); }
-
-    // pentru std::sort: ordinea cronologica
     bool operator<(const LogEntry& other) const { return timestamp_.isBefore(other.timestamp_); }
 
     void updateCounters(int& totalAttempts, int& failedAttempts) const {
@@ -44,7 +40,6 @@ public:
         }
     }
 
-    // "Oct 12 14:02:10  192.168.1.50     parola gresita"
     friend std::ostream& operator<<(std::ostream& os, const LogEntry& entry) {
         return os << entry.timestamp_ << "  " << std::left << std::setw(kIpColumn) << entry.ip_.toString() << std::right
                   << "  " << (entry.failed_ ? "parola gresita" : "logare reusita");
