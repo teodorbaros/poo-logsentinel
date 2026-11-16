@@ -7,8 +7,6 @@
 #include "Alert.h"
 #include "DetectionPolicy.h"
 #include "FirewallEntry.h"
-
-// Tine porturile distincte lovite de un IP intr-o fereastra de timp (pentru port scan).
 class PortScanTracker {
 private:
     FirewallEntry firstPacket_;
@@ -37,11 +35,7 @@ public:
     }
 
     bool isPortScan(const DetectionPolicy& policy) const { return policy.isPortScan(distinctPortCount()); }
-
-    // merita aratat ca "de urmarit" doar daca a lovit macar un port blocat
     bool hasBlockedPorts() const { return distinctPortCount() > 0; }
-
-    // risc = porturi distincte + lovituri pe servicii critice
     Alert createScanAlert(const FirewallEntry& lastPacket) const {
         std::ostringstream msg;
         msg << distinctPortCount() << " porturi blocate in " << lastPacket.secondsSince(firstPacket_) << " s";
