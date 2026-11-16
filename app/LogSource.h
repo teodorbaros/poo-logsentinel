@@ -8,16 +8,11 @@
 #include <string>
 #include <vector>
 #include "LogEntry.h"
-
-// Toate log-urile SSH incarcate, in ordine cronologica.
 class LogSource {
 private:
     std::string sourceName_;
     std::vector<LogEntry> entries_;
     int ignoredLines_;
-
-    // Citeste o linie "Luna Zi Ora Min Sec IP failed"; o pastreaza doar daca e valida.
-    // Folosita si de citirea cu numar fix de linii, si de citirea pana la final de fisier.
     bool readEntry(std::istream& in) {
         std::string month;
         std::string ip;
@@ -39,18 +34,14 @@ private:
 
 public:
     explicit LogSource(const std::string& sourceName) : sourceName_(sourceName), ignoredLines_(0) {}
-
-    // comanda 1: urmatoarele `lineCount` linii din input; intoarce cate au fost valide
     int ingestFromStream(std::istream& in, int lineCount) {
         int added = 0;
         for (int i = 0; i < lineCount; i++) {
             added += readEntry(in) ? 1 : 0;
         }
-        std::stable_sort(entries_.begin(), entries_.end());   // "stable": la aceeasi ora pastreaza ordinea din input
+        std::stable_sort(entries_.begin(), entries_.end());   
         return added;
     }
-
-    // fisier sau log-uri locale: pana la final; intoarce cate au fost valide
     int ingestUntilEof(std::istream& in) {
         int added = 0;
         std::string line;
@@ -60,16 +51,13 @@ public:
                 added++;
             }
         }
-        std::stable_sort(entries_.begin(), entries_.end());   // "stable": la aceeasi ora pastreaza ordinea din input
+        std::stable_sort(entries_.begin(), entries_.end()); 
         return added;
     }
 
     int getEntryCount() const { return static_cast<int>(entries_.size()); }
     int getRejectedCount() const { return ignoredLines_; }
     const LogEntry& getEntryAt(int index) const { return entries_[static_cast<std::size_t>(index)]; }
-
-    //   interval: Oct 12 14:02:10 - Oct 12 14:20:05
-    //   10 IP-uri, 9 parole gresite, 3 logari reusite
     void printTelemetrySummary(std::ostream& os) const {
         if (entries_.empty()) {
             return;
@@ -97,8 +85,6 @@ public:
         }
         return matched;
     }
-
-    // "SSH (sshd): 26 evenimente, 1 linie respinsa"
     friend std::ostream& operator<<(std::ostream& os, const LogSource& source) {
         return os << "SSH (" << source.sourceName_ << "): " << source.entries_.size() << " evenimente, "
                   << source.ignoredLines_ << (source.ignoredLines_ == 1 ? " linie respinsa" : " linii respinse");
