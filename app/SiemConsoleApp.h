@@ -20,15 +20,12 @@
 #include "LocalLogCollector.h"
 #include "LogSource.h"
 #include "SubnetEscalator.h"
-
-// Consola: citeste comenzi (nume sau numar) si le trimite la clasa care stie sa le faca.
-// Tot ce afiseaza merge in `out_`, nu direct in std::cout, ca sa poata fi redirectat (fisier, teste).
 class SiemConsoleApp {
 private:
     static constexpr int kDefaultShowCount = 10;
     static constexpr int kMinBadIpsPer24 = 3;
     static constexpr int kMinBad24sPer16 = 3;
-    static constexpr int kSuggestionColumn = 40;   // "whitelist add 255.255.255.255 <motiv>" + spatiu
+    static constexpr int kSuggestionColumn = 40;  
 
     enum class Answer { Yes, No, All, None };
 
@@ -37,7 +34,7 @@ private:
     FirewallSource fwSource_;
     IpList whitelist_;
     IpList blacklist_;
-    Analyzer analyzer_;   // declarat DUPA surse si liste: le primeste prin referinta in constructor
+    Analyzer analyzer_;   
     SubnetEscalator escalator_;
     LocalLogCollector localCollector_;
     std::vector<CommandInfo> commands_;
@@ -218,15 +215,11 @@ private:
     }
 
     void printUsage(const std::string& keyword) const { findCommand(keyword)->printUsageError(out_); }
-
-    // restul liniei curente, pentru comenzile cu argumente optionale (cu >> am astepta urmatoarea linie)
     static std::string restOfLine(std::istream& in) {
         std::string rest;
         std::getline(in, rest);
         return rest;
     }
-
-    // da / nu / toate / niciunul; final de input = niciunul (ca sa nu ramana blocat)
     Answer askConfirmation(std::istream& in, const std::string& question) const {
         while (true) {
             out_ << "  " << question << " [da/nu/toate/niciunul] ";
@@ -249,9 +242,6 @@ private:
             out_ << "  Raspunde cu da, nu, toate sau niciunul.\n";
         }
     }
-
-    // Folosita si dupa scan (IP-uri) si la escaladare (retele): intreaba pentru fiecare, adauga in blacklist
-    // cu motivul lui. Intoarce cate a adaugat.
     int confirmAndBlacklist(std::istream& in, const std::vector<IpRange>& targets,
                             const std::vector<std::string>& reasons) {
         bool addAll = false;
@@ -275,15 +265,11 @@ private:
         }
         return added;
     }
-
-    // o comanda pe un rand:  "   4  scan          cauta atacuri in log-urile incarcate"
     std::string commandLine(const std::string& number) const {
         std::ostringstream line;
         line << "  " << *findCommand(number);
         return line.str();
     }
-
-    // comenzile, in ordinea numerelor (lista e inregistrata deja asa), cu 0 / exit la final
     void addCommandSections(ConsoleBox& box) const {
         box.addLine("COMENZI (scrii numarul sau numele)");
         for (const CommandInfo& cmd : commands_) {
@@ -373,8 +359,6 @@ private:
             }
         }
     }
-
-    // dupa orice incarcare: totalul sursei si cum arata
     void printSshTotals() const {
         out_ << "In total ai " << sshSource_.getEntryCount() << " evenimente SSH:\n";
         sshSource_.printTelemetrySummary(out_);
@@ -384,8 +368,6 @@ private:
         out_ << "In total ai " << fwSource_.getEntryCount() << " pachete de firewall:\n";
         fwSource_.printTelemetrySummary(out_);
     }
-
-    // "  blacklist howto 1.2.3.4                comanda de blocare in firewall" (descrierea pe aceeasi coloana)
     static std::string suggestion(const std::string& command, const std::string& description) {
         std::ostringstream line;
         line << "  " << std::left << std::setw(kSuggestionColumn) << command << description;
@@ -393,8 +375,6 @@ private:
     }
 
     static std::string lineCount(int count) { return std::to_string(count) + (count == 1 ? " linie" : " linii"); }
-
-    // "12 valide, 1 respinsa" / "13 valide, 0 respinse"
     static std::string validRejected(int valid, int rejected) {
         return std::to_string(valid) + (valid == 1 ? " valida, " : " valide, ") + std::to_string(rejected) +
                (rejected == 1 ? " respinsa" : " respinse");
@@ -522,8 +502,6 @@ private:
         analyzer_.printActiveTrackers(out_);
         return true;
     }
-
-    // dupa scan: IP-urile cu alerte HIGH/CRITICAL care nu sunt deja in vreo lista
     void offerBlacklist(std::istream& in) {
         std::vector<IpRange> targets;
         std::vector<std::string> reasons;
@@ -561,8 +539,6 @@ private:
         out_ << "Retele care merita blocate intregi:\n";
         confirmAndBlacklist(in, targets, reasons);
     }
-
-    // whitelist/blacklist add|remove|list (+ howto|export|escalate doar la blacklist)
     void handleIpListCommand(std::istream& in, IpList& list, const IpList& otherList, const std::string& keyword) {
         std::istringstream args(restOfLine(in));
         std::string action;
@@ -668,8 +644,6 @@ private:
             out_ << "Alerte:\n" << alertLines.str();
         }
     }
-
-    // copia alertei originale (constructor de copiere) + versiunea escaladata (operator=)
     void handleAlertArchival() {
         if (!analyzer_.hasAnyAlerts()) {
             out_ << "Nu am ce arhiva: ruleaza intai 'scan', iar arhivarea ia cea mai grava alerta gasita.\n";
@@ -717,8 +691,6 @@ private:
             }
         }
     }
-
-    // trimite comanda la handler-ul ei; false = iesire
     bool dispatch(int option, std::istream& in) {
         switch (option) {
             case 0: out_ << "La revedere.\n"; return false;
@@ -773,7 +745,7 @@ public:
             const CommandInfo* cmd = findCommand(token);
             if (cmd == nullptr) {
                 out_ << "Nu cunosc comanda '" << token << "'. Scrie 'help' ca sa vezi comenzile.\n";
-                restOfLine(in);   // sarim restul liniei, ca argumentele ei sa nu fie luate drept comenzi
+                restOfLine(in);  
                 continue;
             }
             executedCommands_++;
@@ -783,8 +755,6 @@ public:
             }
         }
     }
-
-    // rezumatul de la final (din main)
     friend std::ostream& operator<<(std::ostream& os, const SiemConsoleApp& app) {
         return os << "Sesiune: " << app.executedCommands_ << " comenzi, " << app.archivedAlerts_.size()
                   << " incidente arhivate. " << app.sshSource_ << "; " << app.fwSource_ << ".";
