@@ -6,15 +6,11 @@
 #include <string>
 #include "IpRange.h"
 
-// Comenzile de firewall care blocheaza un IP/subnet pe sistemul curent.
-// Aplicatia NU le ruleaza: le afiseaza sau le scrie intr-un script, iar utilizatorul le verifica si le ruleaza.
-// Comenzile sunt scrise o singura data aici si refolosite (afisare + export script).
 class FirewallBlockAdvisor {
 private:
     IpRange target_;
 
 #if defined(_WIN32)
-    // numele regulii in Windows Firewall (ufw nu are nevoie de nume, deci functia exista doar pe Windows)
     std::string ruleName() const { return "LogSentinel block " + target_.toText(); }
 #endif
 
@@ -26,7 +22,6 @@ public:
         return "netsh advfirewall firewall add rule name=\"" + ruleName() + "\" dir=in action=block remoteip=" +
                target_.toText();
 #else
-        // "insert 1": ufw aplica PRIMA regula care se potriveste, deci un "allow 22" mai vechi ar castiga
         return "sudo ufw insert 1 deny from " + target_.toText() + " to any";
 #endif
     }
