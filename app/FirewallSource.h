@@ -8,15 +8,11 @@
 #include <string>
 #include <vector>
 #include "FirewallEntry.h"
-
-// Toate pachetele de firewall incarcate, in ordine cronologica.
 class FirewallSource {
 private:
     std::string sourceName_;
     std::vector<FirewallEntry> entries_;
     int ignoredLines_;
-
-    // Citeste o linie "Luna Zi Ora Min Sec IP port protocol blocked"; o pastreaza doar daca e valida.
     bool readEntry(std::istream& in) {
         std::string month;
         std::string ip;
@@ -46,7 +42,7 @@ public:
         for (int i = 0; i < packetCount; i++) {
             added += readEntry(in) ? 1 : 0;
         }
-        std::stable_sort(entries_.begin(), entries_.end());   // "stable": la aceeasi ora pastreaza ordinea din input
+        std::stable_sort(entries_.begin(), entries_.end());  
         return added;
     }
 
@@ -59,16 +55,13 @@ public:
                 added++;
             }
         }
-        std::stable_sort(entries_.begin(), entries_.end());   // "stable": la aceeasi ora pastreaza ordinea din input
+        std::stable_sort(entries_.begin(), entries_.end());  
         return added;
     }
 
     int getEntryCount() const { return static_cast<int>(entries_.size()); }
     int getRejectedCount() const { return ignoredLines_; }
     const FirewallEntry& getEntryAt(int index) const { return entries_[static_cast<std::size_t>(index)]; }
-
-    //   interval: Oct 12 14:01:05 - Oct 12 14:25:40
-    //   8 IP-uri, 15 blocate, 8 permise, 12 porturi diferite (4 pe servicii critice)
     void printTelemetrySummary(std::ostream& os) const {
         if (entries_.empty()) {
             return;
@@ -98,8 +91,6 @@ public:
         }
         return matched;
     }
-
-    // "Firewall (ufw): 23 pachete, 1 linie respinsa"
     friend std::ostream& operator<<(std::ostream& os, const FirewallSource& source) {
         return os << "Firewall (" << source.sourceName_ << "): " << source.entries_.size() << " pachete, "
                   << source.ignoredLines_ << (source.ignoredLines_ == 1 ? " linie respinsa" : " linii respinse");
