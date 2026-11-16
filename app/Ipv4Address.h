@@ -5,8 +5,6 @@
 #include <iostream>
 #include <string>
 
-// O adresa IPv4 validata, tinuta si ca text si ca numar pe 32 de biti.
-// Inlocuieste validarea care era copiata identic in LogEntry si FirewallEntry.
 class Ipv4Address {
 private:
     static constexpr std::uint32_t kMaxOctet = 255;
@@ -15,7 +13,6 @@ private:
     std::uint32_t value_;
     bool valid_;
 
-    // "192.168.1.50" -> 4 octeti intre 0 si 255, separati de exact 3 puncte
     void parse() {
         std::uint32_t octet = 0;
         int digits = 0;
@@ -54,7 +51,6 @@ public:
 
     bool sameAs(const Ipv4Address& other) const { return valid_ && other.valid_ && value_ == other.value_; }
 
-    // retele locale: 10/8, 172.16/12, 192.168/16 si 127/8 (loopback)
     bool isPrivate() const {
         if (!valid_) {
             return false;
@@ -64,8 +60,6 @@ public:
         return first == 10 || first == 127 || (first == 172 && second >= 16 && second <= 31) ||
                (first == 192 && second == 168);
     }
-
-    // 0x2D0C0300 -> "45.12.3.0"
     static std::string numberToText(std::uint32_t number) {
         return std::to_string((number >> 24) & kMaxOctet) + "." + std::to_string((number >> 16) & kMaxOctet) + "." +
                std::to_string((number >> 8) & kMaxOctet) + "." + std::to_string(number & kMaxOctet);
