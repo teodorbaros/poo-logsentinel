@@ -11,13 +11,11 @@
 #include "LogEntry.h"
 #include "Timestamp.h"
 
-// Un pachet vazut de firewall: cand, de la ce IP, spre ce port, blocat sau permis.
 class FirewallEntry {
 private:
     static constexpr int kMaxPort = 65535;
     static constexpr int kIpColumn = 15;
-    static constexpr int kStatusColumn = 8;   // "blocat" / "permis" + spatiu
-    // FTP, SSH, Telnet, SMB, MSSQL, MySQL, RDP
+    static constexpr int kStatusColumn = 8;  
     static constexpr std::array<int, 7> kCriticalPorts = {21, 22, 23, 445, 1433, 3306, 3389};
 
     Timestamp timestamp_;
@@ -55,8 +53,6 @@ public:
     bool targetsCriticalService() const {
         return std::find(kCriticalPorts.begin(), kCriticalPorts.end(), destPort_) != kCriticalPorts.end();
     }
-
-    // Adauga pachetul la statisticile unui port scan (doar pachetele blocate conteaza)
     void updateScanMetrics(std::vector<int>& distinctPorts, int& blockedCount, int& criticalHits) const {
         if (!blocked_) {
             return;
@@ -70,10 +66,7 @@ public:
         }
     }
 
-    // Alertele au nevoie de un LogEntry ca "declansator" (moment + IP)
     LogEntry toTriggerEntry() const { return {timestamp_, sourceIp_, blocked_}; }
-
-    // "Oct 12 14:01:05  203.0.113.77     blocat    TCP port 22 (serviciu critic)"
     friend std::ostream& operator<<(std::ostream& os, const FirewallEntry& fw) {
         os << fw.timestamp_ << "  " << std::left << std::setw(kIpColumn) << fw.sourceIp_.toString() << "  "
            << std::setw(kStatusColumn) << (fw.blocked_ ? "blocat" : "permis") << std::right << "  " << fw.protocol_ << " port "
